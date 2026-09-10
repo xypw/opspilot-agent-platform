@@ -33,6 +33,10 @@ class AgentEvaluationResult(BaseModel):
     duration_ms: float = Field(default=0.0, ge=0.0)
     model_requests: int = Field(default=0, ge=0)
     simulated_model_requests: int = Field(default=0, ge=0)
+    model_http_attempts: int = Field(default=0, ge=0)
+    model_retry_count: int = Field(default=0, ge=0)
+    model_turn_durations_ms: list[float] = Field(default_factory=list)
+    model_http_attempt_durations_ms: list[float] = Field(default_factory=list)
     # 批量运行时只保存异常类型，不保存可能含有业务数据或密钥的原始异常消息。
     error_type: str | None = None
     error_status_code: int | None = Field(default=None, ge=100, le=599)
@@ -138,6 +142,10 @@ def evaluate_response(
         actual_answer=response.answer,
         model_requests=response.model_requests,
         simulated_model_requests=response.simulated_model_requests,
+        model_http_attempts=response.model_http_attempts,
+        model_retry_count=response.model_retry_count,
+        model_turn_durations_ms=response.model_turn_durations_ms,
+        model_http_attempt_durations_ms=response.model_http_attempt_durations_ms,
     )
 
 

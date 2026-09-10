@@ -4,9 +4,12 @@
 然后由受控的 PendingActionStore 执行一次写操作。
 """
 
+from __future__ import annotations
+
 import json
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Literal, Protocol, TypedDict
 
 import httpx
@@ -19,7 +22,7 @@ from action_models import PendingAction
 from grounding_policy import answer_when_evidence_is_missing, append_verified_citations
 from order_service_client import OrderServiceError
 from preview_tool_call import build_initial_messages, extract_tool_preview, load_api_key
-from retry_policy import request_message_with_retry
+from retry_policy import ModelRequestTelemetry, request_message_with_retry
 from tool_args import RequestPriorityChangeArgs
 from tool_executor import execute_tool
 from tool_messages import build_tool_message
@@ -73,7 +76,17 @@ class AgentActionStore(Protocol):
 class AgentModelGateway(Protocol):
     """图不依赖某个厂商 SDK；节点只要求“给消息，返回一条模型消息”。"""
 
-    def request(self, mode: AgentMode, messages: list[dict], *, offer_tools: bool) -> dict: ...
+    def request(
+        self, mode: AgentMode, messages: list[dict], *, offer_tools: bool
+    ) -> dict | "AgentModelReply": ...
+
+
+@dataclass(frozen=True)
+class AgentModelReply:
+    """模型消息和该轮 HTTP 指标；测试网关仍可直接返回旧字典。"""
+
+    message: dict
+    telemetry: ModelRequestTelemetry
 
 
 class AgentGraphState(TypedDict, total=False):
@@ -96,6 +109,10 @@ class AgentGraphState(TypedDict, total=False):
     rag_evidence: list[dict]
     model_requests: int
     simulated_model_requests: int
+    model_http_attempts: int
+    model_retry_count: int
+    model_turn_durations_ms: list[float]
+    model_http_attempt_durations_ms: list[float]
     order_id: str
     return_reason: str | None
     return_decision: str
@@ -155,12 +172,18 @@ class AgentGraphResponse(BaseModel):
     tool_trace: list[AgentToolTrace] = Field(default_factory=list)
     model_requests: int = Field(ge=0)
     simulated_model_requests: int = Field(ge=0)
+    model_http_attempts: int = Field(default=0, ge=0)
+    model_retry_count: int = Field(default=0, ge=0)
+    model_turn_durations_ms: list[float] = Field(default_factory=list)
+    model_http_attempt_durations_ms: list[float] = Field(default_factory=list)
 
 
 class ConfiguredAgentModelGateway:
     """mock 全离线；live 才读取本地 .env 并请求模型。"""
 
-    def request(self, mode: AgentMode, messages: list[dict], *, offer_tools: bool) -> dict:
+    def request(
+        self, mode: AgentMode, messages: list[dict], *, offer_tools: bool
+    ) -> dict | AgentModelReply:
         if mode == "mock":
             return self._mock_response(messages, offer_tools=offer_tools)
         if mode != "live":  # TypedDict 之外的调用也要拒绝，避免隐式行为。
@@ -175,12 +198,23 @@ class ConfiguredAgentModelGateway:
 
         # API Key 只停留在这一小段请求代码中，不进入 LangGraph Checkpoint State。
         with httpx.Client(timeout=httpx.Timeout(45, connect=10), trust_env=False) as client:
-            return request_message_with_retry(
-                api_key,
-                client,
-                messages,
-                offer_tools=offer_tools,
-            )
+            telemetry = ModelRequestTelemetry()
+            try:
+                message = request_message_with_retry(
+                    api_key,
+                    client,
+                    messages,
+                    offer_tools=offer_tools,
+                    telemetry=telemetry,
+                )
+            except Exception as error:
+                # 异常继续保持原类型，供现有 API 映射处理；只附加数值诊断，不附加请求正文。
+                error.model_http_attempts = telemetry.http_attempts
+                error.model_retry_count = telemetry.retry_count
+                error.model_turn_durations_ms = [telemetry.duration_ms]
+                error.model_http_attempt_durations_ms = telemetry.attempt_durations_ms.copy()
+                raise
+            return AgentModelReply(message=message, telemetry=telemetry)
 
     def _mock_response(self, messages: list[dict], *, offer_tools: bool) -> dict:
         """离线模拟“模型选择工具/根据工具结果回答”，用于稳定开发和测试。"""
@@ -315,11 +349,30 @@ def build_agent_graph(
     def call_model_node(state: AgentGraphState) -> AgentGraphState:
         # 达到上限后不再向模型提供工具，强制进入最终回答，防止无限循环。
         offer_tools = state.get("tool_steps", 0) < MAX_TOOL_STEPS
-        message = model_gateway.request(state["mode"], state["messages"], offer_tools=offer_tools)
+        gateway_reply = model_gateway.request(
+            state["mode"], state["messages"], offer_tools=offer_tools
+        )
+        # 项目真实网关返回消息和 HTTP 指标；旧测试网关仍可只返回消息字典。
+        if isinstance(gateway_reply, AgentModelReply):
+            message = gateway_reply.message
+            telemetry = gateway_reply.telemetry
+        else:
+            message = gateway_reply
+            telemetry = None
         counter_name = "simulated_model_requests" if state["mode"] == "mock" else "model_requests"
         updates: AgentGraphState = {
             counter_name: state.get(counter_name, 0) + 1,
         }
+        if telemetry is not None:
+            updates.update({
+                "model_http_attempts": state.get("model_http_attempts", 0) + telemetry.http_attempts,
+                "model_retry_count": state.get("model_retry_count", 0) + telemetry.retry_count,
+                "model_turn_durations_ms": state.get("model_turn_durations_ms", [])
+                + [telemetry.duration_ms],
+                "model_http_attempt_durations_ms": state.get(
+                    "model_http_attempt_durations_ms", []
+                ) + telemetry.attempt_durations_ms,
+            })
 
         if message.get("role") != "assistant":
             raise ValueError("模型消息角色不正确。")
@@ -656,6 +709,11 @@ def start_agent_graph(graph, request: AgentGraphStartRequest) -> AgentGraphRespo
         "model_requests": 0,
         # 模拟模式单独记录本地模拟的模型交互次数。
         "simulated_model_requests": 0,
+        # HTTP 指标只统计 live 网关；mock 模式不会伪造外部请求次数。
+        "model_http_attempts": 0,
+        "model_retry_count": 0,
+        "model_turn_durations_ms": [],
+        "model_http_attempt_durations_ms": [],
     }, config=config)
     # 不把 LangGraph 的内部字段直接返回给 HTTP 客户端。
     return _to_response(state)
@@ -782,4 +840,8 @@ def _to_response(state: AgentGraphState) -> AgentGraphResponse:
         tool_trace=state.get("tool_trace", []),
         model_requests=state.get("model_requests", 0),
         simulated_model_requests=state.get("simulated_model_requests", 0),
+        model_http_attempts=state.get("model_http_attempts", 0),
+        model_retry_count=state.get("model_retry_count", 0),
+        model_turn_durations_ms=state.get("model_turn_durations_ms", []),
+        model_http_attempt_durations_ms=state.get("model_http_attempt_durations_ms", []),
     )

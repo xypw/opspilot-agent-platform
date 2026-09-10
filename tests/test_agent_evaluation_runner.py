@@ -116,6 +116,10 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         class SafeProviderError(Exception):
             status_code = 429
             provider_code = "1305"
+            model_http_attempts = 3
+            model_retry_count = 2
+            model_turn_durations_ms = [46000.0]
+            model_http_attempt_durations_ms = [15000.0, 15000.0, 15400.0]
 
         def failing_runner(case_id: str, question: str) -> AgentGraphResponse:
             raise SafeProviderError("这段原始错误消息不能进入评测报告")
@@ -124,6 +128,10 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
 
         self.assertEqual(result.error_status_code, 429)
         self.assertEqual(result.provider_error_code, "1305")
+        self.assertEqual(result.model_http_attempts, 3)
+        self.assertEqual(result.model_retry_count, 2)
+        self.assertEqual(result.model_turn_durations_ms, [46000.0])
+        self.assertEqual(len(result.model_http_attempt_durations_ms), 3)
         self.assertNotIn("原始错误消息", result.model_dump_json())
 
     def test_selected_cases_keep_requested_order(self):

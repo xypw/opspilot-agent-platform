@@ -63,6 +63,9 @@ def run_evaluation_cases(
         except Exception as error:
             # 批量任务的边界允许隔离单条异常；Exception 不会吞掉退出等系统信号。
             status_code, provider_code = _safe_error_codes(error)
+            http_attempts, retry_count, turn_durations, attempt_durations = (
+                _safe_model_telemetry(error)
+            )
             results.append(AgentEvaluationResult(
                 case_id=case.case_id,
                 success=False,
@@ -71,6 +74,10 @@ def run_evaluation_cases(
                 error_type=type(error).__name__,
                 error_status_code=status_code,
                 provider_error_code=provider_code,
+                model_http_attempts=http_attempts,
+                model_retry_count=retry_count,
+                model_turn_durations_ms=turn_durations,
+                model_http_attempt_durations_ms=attempt_durations,
             ))
             continue
 
@@ -159,3 +166,31 @@ def _safe_error_codes(error: Exception) -> tuple[int | None, str | None]:
         else None
     )
     return status_code, provider_code
+
+
+def _safe_model_telemetry(error: Exception) -> tuple[int, int, list[float], list[float]]:
+    """从网关异常提取有限数值指标，拒绝任意对象和负数。"""
+    raw_attempts = getattr(error, "model_http_attempts", 0)
+    http_attempts = raw_attempts if isinstance(raw_attempts, int) and raw_attempts >= 0 else 0
+    raw_retries = getattr(error, "model_retry_count", 0)
+    retry_count = raw_retries if isinstance(raw_retries, int) and raw_retries >= 0 else 0
+    turn_durations = _safe_duration_list(getattr(error, "model_turn_durations_ms", []))
+    attempt_durations = _safe_duration_list(
+        getattr(error, "model_http_attempt_durations_ms", [])
+    )
+    return http_attempts, retry_count, turn_durations, attempt_durations
+
+
+def _safe_duration_list(value: object) -> list[float]:
+    """只保留最多 20 个非负有限耗时值，防止异常对象污染报告。"""
+    if not isinstance(value, list) or len(value) > 20:
+        return []
+    durations: list[float] = []
+    for item in value:
+        if not isinstance(item, (int, float)) or isinstance(item, bool):
+            return []
+        duration = float(item)
+        if duration < 0 or duration == float("inf") or duration != duration:
+            return []
+        durations.append(duration)
+    return durations

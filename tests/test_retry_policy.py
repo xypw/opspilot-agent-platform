@@ -6,7 +6,7 @@ import unittest
 import httpx
 
 from preview_tool_call import API_URL, ModelAPIError, build_initial_messages
-from retry_policy import is_retryable_error, request_message_with_retry
+from retry_policy import ModelRequestTelemetry, is_retryable_error, request_message_with_retry
 
 
 class RetryPolicyTests(unittest.TestCase):
@@ -32,25 +32,35 @@ class RetryPolicyTests(unittest.TestCase):
     def test_429_retries_with_exponential_backoff(self):
         client, request_count = self.make_client([429, 503, 200])
         delays = []
+        telemetry = ModelRequestTelemetry()
 
         result = request_message_with_retry(
-            "fake-key", client, build_initial_messages(), sleeper=delays.append
+            "fake-key", client, build_initial_messages(), sleeper=delays.append,
+            telemetry=telemetry,
         )
 
         self.assertEqual(result["content"], "成功")
         self.assertEqual(request_count(), 3)
         self.assertEqual(delays, [0.2, 0.4])
+        self.assertEqual(telemetry.http_attempts, 3)
+        self.assertEqual(telemetry.retry_count, 2)
+        self.assertEqual(len(telemetry.attempt_durations_ms), 3)
+        self.assertGreaterEqual(telemetry.duration_ms, 0.0)
 
     def test_400_does_not_retry(self):
         client, request_count = self.make_client([400])
         delays = []
+        telemetry = ModelRequestTelemetry()
 
         with self.assertRaises(ModelAPIError):
             request_message_with_retry(
-                "fake-key", client, build_initial_messages(), sleeper=delays.append
+                "fake-key", client, build_initial_messages(), sleeper=delays.append,
+                telemetry=telemetry,
             )
         self.assertEqual(request_count(), 1)
         self.assertEqual(delays, [])
+        self.assertEqual(telemetry.http_attempts, 1)
+        self.assertEqual(telemetry.retry_count, 0)
 
     def test_request_error_retries(self):
         request_count = 0
@@ -67,13 +77,17 @@ class RetryPolicyTests(unittest.TestCase):
         client = httpx.Client(transport=httpx.MockTransport(respond), trust_env=False)
         self.addCleanup(client.close)
         delays = []
+        telemetry = ModelRequestTelemetry()
 
         result = request_message_with_retry(
-            "fake-key", client, build_initial_messages(), sleeper=delays.append
+            "fake-key", client, build_initial_messages(), sleeper=delays.append,
+            telemetry=telemetry,
         )
         self.assertEqual(result["content"], "成功")
         self.assertEqual(request_count, 2)
         self.assertEqual(delays, [0.2])
+        self.assertEqual(telemetry.http_attempts, 2)
+        self.assertEqual(telemetry.retry_count, 1)
 
     def test_invalid_model_response_is_not_retryable(self):
         self.assertFalse(is_retryable_error(ValueError("响应格式错误")))

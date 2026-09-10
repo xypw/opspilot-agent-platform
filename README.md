@@ -182,12 +182,17 @@ python -m venv .venv
 HTTP 状态码和数字业务码的安全诊断字段后，第二次运行正确选择 `search_knowledge_base`，
 回答包含“三个工作日”并由程序追加《售后与退款制度》第 2 页引用，耗时约 77 秒。当前
 `model_requests=2` 表示两个成功返回的模型轮次，并不包含网关内部的 HTTP 重试次数；完整
-请求尝试数仍是后续可观测性待办。
+请求尝试数由后续新增的 `model_http_attempts`、`model_retry_count`、
+`model_turn_durations_ms` 和 `model_http_attempt_durations_ms` 单独记录。
 
 指标口径：`task_success_rate` 以全部用例为分母，运行错误也会降低端到端成功率；
 `evaluation_completion_rate` 表示成功拿到可评分响应的比例；`scored_success_rate` 只在已得到
 完整响应的用例中衡量 Agent 质量。三者必须一起报告，不能用排除 429/超时后的分数掩盖系统
 可靠性问题。
+
+模型指标口径：`model_requests` 是成功返回的模型轮次；`model_http_attempts` 是包含失败请求的
+HTTP 总尝试数；`model_retry_count` 是首次尝试失败后真正进行的重试次数。每轮总耗时包含
+退避等待，单次 HTTP 耗时不包含等待。Mock 模式不会伪造外部请求，因此这些 HTTP 指标为 0。
 
 ## Tool Calling：先观察模型选择，不执行工具
 
