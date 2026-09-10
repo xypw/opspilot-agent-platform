@@ -33,6 +33,7 @@ def run_mock_chat(message: str) -> dict:
         value.lower()
         for value in re.findall(r"(?<![A-Za-z])(low|medium|high)(?![A-Za-z])", message, flags=re.IGNORECASE)
     }
+    return_requested = any(word in message for word in ("退货", "无理由", "能退", "可以退"))
 
     if change_requested:
         if not record_id.startswith("T-") or len(priorities) != 1:
@@ -42,6 +43,9 @@ def run_mock_chat(message: str) -> dict:
         new_priority = priorities.pop()
         tool_name, record_label = "request_priority_change", "工单"
         arguments = {"ticket_id": record_id, "new_priority": new_priority}
+    elif record_id.startswith("O-") and return_requested:
+        tool_name, record_label = "check_return_eligibility", "订单"
+        arguments = {"order_id": record_id}
     elif record_id.startswith("T-"):
         tool_name, argument_name, record_label = "query_ticket", "ticket_id", "工单"
         arguments = {argument_name: record_id}
@@ -80,6 +84,14 @@ def run_mock_chat(message: str) -> dict:
                     f"{tool_result['previous_priority']} 改为 {tool_result['new_priority']}。"
                     "当前状态 pending，尚未修改工单；请确认该 action_id 后再执行。"
                 )
+            elif tool_name == "check_return_eligibility":
+                decision = tool_result["decision"]
+                if decision == "NO_REASON_ALLOWED":
+                    answer = f"[模拟模式] 订单 {record_id} 在七天无理由期限内，可以申请退货。"
+                elif decision == "REASON_REQUIRED":
+                    answer = f"[模拟模式] 订单 {record_id} 可以申请退货，但必须提供退货理由。"
+                else:
+                    answer = f"[模拟模式] 订单 {record_id} 当前不能申请退货。"
             else:
                 answer = f"[模拟模式] 订单 {tool_result['id']}：商品 {tool_result['product']}，状态 {tool_result['status']}。"
             reply = {"role": "assistant", "content": answer}

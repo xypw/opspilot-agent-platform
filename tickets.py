@@ -1,5 +1,7 @@
 """模拟工单查询：这里不依赖 FastAPI，也不调用大模型。"""
 
+from ticket_repository import Ticket, TicketRepository
+
 TICKETS = [
     {"id": "T-1001", "status": "open", "priority": "high"},
     {"id": "T-1002", "status": "closed", "priority": "low"},
@@ -22,3 +24,13 @@ def change_ticket_priority(ticket_id: str, new_priority: str) -> dict[str, str] 
             ticket["priority"] = new_priority
             return ticket.copy()
     return None
+
+
+class InMemoryTicketRepository(TicketRepository):
+    """用现有 TICKETS 列表实现仓库接口，供离线教学和单元测试使用。"""
+
+    def get_by_id(self, ticket_id: str) -> Ticket | None:
+        return query_ticket(ticket_id)
+
+    def change_priority(self, ticket_id: str, new_priority: str) -> Ticket | None:
+        return change_ticket_priority(ticket_id, new_priority)

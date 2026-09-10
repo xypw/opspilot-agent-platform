@@ -17,6 +17,14 @@ class QueryOrderArgs(BaseModel):
     order_id: str = Field(min_length=1)
 
 
+class CheckReturnEligibilityArgs(BaseModel):
+    """单独建模，避免未来退货参数变化时影响普通订单查询。"""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    order_id: str = Field(min_length=1)
+
+
 class SearchKnowledgeBaseArgs(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 

@@ -5,7 +5,7 @@ import json
 from execute_tool_example import execute_query_example
 
 
-def build_tool_message(tool_call_id: str, result: dict | None) -> dict[str, str]:
+def build_tool_message(tool_call_id: str, result: dict | list[dict] | None) -> dict[str, str]:
     """使用调用 ID 对应请求，并将结果序列化为 JSON 字符串。"""
     return {
         "role": "tool",

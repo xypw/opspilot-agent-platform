@@ -95,6 +95,23 @@ class CheckpointStoreTests(unittest.TestCase):
         with self.assertRaises(RunStateError):
             self.run_store.confirm(run.run_id)
 
+    def test_cancelled_run_never_executes_its_pending_action(self):
+        action = self.action_store.propose_priority_change("T-1003", "high")
+        run = self.run_store.start(
+            "thread-1", "cancel-1", "修改 T-1003",
+            Mock(return_value=pending_chat_result(action.action_id)),
+        )
+
+        cancelled = self.run_store.cancel(run.run_id)
+        repeated = self.run_store.cancel(run.run_id)
+        self.assertEqual(cancelled.status, "CANCELLED")
+        self.assertEqual(cancelled.version, 2)
+        self.assertEqual(repeated, cancelled)
+        self.assertEqual(self.action_store.get(action.action_id).status, "cancelled")
+        self.assertEqual(query_ticket("T-1003")["priority"], "medium")
+        with self.assertRaises(RunStateError):
+            self.run_store.confirm(run.run_id)
+
     def test_unknown_run_is_rejected(self):
         with self.assertRaises(RunNotFoundError):
             self.run_store.get("run_missing")
@@ -184,6 +201,28 @@ class CheckpointApiTests(unittest.TestCase):
         self.assertEqual(started.json()["status"], "COMPLETED")
         self.assertIsNone(started.json()["pending_action_id"])
         self.assertEqual(confirmed.status_code, 409)
+
+    def test_cancel_then_confirm_is_rejected_without_ticket_mutation(self):
+        first_patch, second_patch = self.patches()
+        body = {
+            "thread_id": "thread-demo-001",
+            "idempotency_key": "cancel-t1003-v1",
+            "message": "把工单 T-1003 的优先级改成 high",
+        }
+        with first_patch, second_patch:
+            started = self.client.post("/agent/runs", json=body)
+            cancelled = self.client.post("/agent/runs/run_api_001/cancel")
+            repeated_cancel = self.client.post("/agent/runs/run_api_001/cancel")
+            confirmed = self.client.post("/agent/runs/run_api_001/confirm")
+            ticket = self.client.get("/tickets/T-1003")
+
+        self.assertEqual(started.status_code, 200)
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.json()["status"], "CANCELLED")
+        self.assertEqual(cancelled.json()["version"], 2)
+        self.assertEqual(repeated_cancel.json(), cancelled.json())
+        self.assertEqual(confirmed.status_code, 409)
+        self.assertEqual(ticket.json()["priority"], "medium")
 
     def test_unknown_run_and_invalid_body_are_rejected(self):
         first_patch, second_patch = self.patches()

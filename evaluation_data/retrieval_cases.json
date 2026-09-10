@@ -1,0 +1,57 @@
+[
+  {
+    "id": "emergency-refund-arrival",
+    "query": "紧急退款审核通过后多久到账？",
+    "expected_chunk_id": "refund-emergency-eta-p1-c1"
+  },
+  {
+    "id": "standard-refund-arrival",
+    "query": "普通退款审核通过后多久到账？",
+    "expected_chunk_id": "refund-standard-eta-p2-c1"
+  },
+  {
+    "id": "refund-eligibility",
+    "query": "已签收订单还能申请退款吗？",
+    "expected_chunk_id": "refund-eligibility-p2-c2"
+  },
+  {
+    "id": "refund-cancel",
+    "query": "退款审核通过以后还能撤销吗？",
+    "expected_chunk_id": "refund-cancel-p2-c3"
+  },
+  {
+    "id": "high-ticket-first-response",
+    "query": "高优先级工单多久首次响应？",
+    "expected_chunk_id": "ticket-high-sla-p4-c1"
+  },
+  {
+    "id": "normal-ticket-first-response",
+    "query": "普通优先级工单多久首次响应？",
+    "expected_chunk_id": "ticket-normal-sla-p4-c2"
+  },
+  {
+    "id": "ticket-priority-change",
+    "query": "提高工单优先级是否需要用户确认？",
+    "expected_chunk_id": "ticket-priority-change-p5-c1"
+  },
+  {
+    "id": "invoice-application",
+    "query": "订单完成后怎么申请电子发票？",
+    "expected_chunk_id": "invoice-application-p1-c1"
+  },
+  {
+    "id": "invoice-delivery",
+    "query": "电子发票开好后发送到哪里？",
+    "expected_chunk_id": "invoice-delivery-p1-c2"
+  },
+  {
+    "id": "order-cancel",
+    "query": "处理中订单可以直接取消吗？",
+    "expected_chunk_id": "order-cancel-p3-c2"
+  },
+  {
+    "id": "payment-403",
+    "query": "PAYMENT_403 表示什么？",
+    "expected_chunk_id": "payment-permission-p6-c1"
+  }
+]

@@ -29,8 +29,9 @@ class AgentLoopTests(unittest.TestCase):
             payload = json.loads(request.content)
             self.assertEqual(payload["model"], "glm-4.7-flash")
             self.assertEqual({item["function"]["name"] for item in payload["tools"]},
-                             {"query_order", "query_ticket", "search_knowledge_base",
-                              "request_priority_change"})
+                            {"query_order", "query_ticket", "check_return_eligibility",
+                             "search_knowledge_base",
+                             "request_priority_change"})
             requests.append(payload)
             self.assertLessEqual(len(requests), len(replies), "请求次数超过预期")
             reply = replies[len(requests) - 1]
@@ -57,7 +58,10 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(history[3]["tool_call_id"], "call_1")
         self.assertEqual(history[5]["tool_call_id"], "call_2")
         self.assertEqual(json.loads(history[3]["content"]),
-                         {"id": "O-2001", "status": "shipped", "product": "机械键盘"})
+                         {
+                             "id": "O-2001", "status": "delivered", "product": "机械键盘",
+                             "delivered_at": "2026-08-31", "amount_cents": 39900,
+                         })
         self.assertEqual(json.loads(history[5]["content"]),
                          {"id": "T-1003", "status": "open", "priority": "medium"})
 
@@ -140,11 +144,19 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(answer, NO_EVIDENCE_ANSWER)
         self.assertEqual(len(requests), 1)
 
-    def test_provider_error_does_not_retry_or_continue(self):
-        client, requests = self.make_client([tool_reply(), 429])
-        with self.assertRaises(ModelAPIError):
-            run_agent("fake-test-key", client, "查 O-2001")
-        self.assertEqual(len(requests), 2)
+    def test_retryable_provider_error_retries_only_the_model_request(self):
+        client, requests = self.make_client([
+            tool_reply(),
+            429,
+            {"role": "assistant", "content": "订单查询完成。"},
+        ])
+        with patch("retry_policy.sleep") as sleeper:
+            answer = run_agent("fake-test-key", client, "查 O-2001")
+
+        self.assertEqual(answer, "订单查询完成。")
+        # 第 2 个模型请求 429 后重发一次；工具没有被重复执行。
+        self.assertEqual(len(requests), 3)
+        sleeper.assert_called_once_with(0.2)
 
     def test_separate_runs_start_with_fresh_history(self):
         client, requests = self.make_client([

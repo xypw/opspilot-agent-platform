@@ -19,7 +19,8 @@ class AgentRunCheckpoint(BaseModel):
     run_id: str = Field(min_length=1)
     thread_id: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1)
-    status: Literal["WAITING_CONFIRMATION", "COMPLETED"]
+    # 状态是 Agent 工作流的事实来源；API 客户端据此决定显示确认、完成或取消结果。
+    status: Literal["WAITING_CONFIRMATION", "COMPLETED", "CANCELLED"]
     user_message: str = Field(min_length=1)
     pending_action_id: str | None
     tool_name: str

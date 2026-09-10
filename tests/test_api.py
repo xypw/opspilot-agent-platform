@@ -86,8 +86,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             "id": "O-2001",
-            "status": "shipped",
+            "status": "delivered",
             "product": "机械键盘",
+            "delivered_at": "2026-08-31",
+            "amount_cents": 39900,
         })
 
     def test_missing_order_returns_404(self):
@@ -196,6 +198,8 @@ class ApiTests(unittest.TestCase):
         with (
             patch("main.ingest_pdf", return_value=ingestion_result),
             patch("knowledge_base.VECTOR_STORE", vector_store),
+            # 测试混合检索接口本身，不让本地是否配置云端 Key 改变测试结果。
+            patch("knowledge_base.RERANKER", None),
         ):
             upload_response = self.client.post(
                 "/documents/upload",
@@ -210,7 +214,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(upload_response.status_code, 200)
         self.assertEqual(search_response.status_code, 200)
         self.assertEqual(search_response.json()[0]["chunk_id"], "company-guide-p1-c0")
-        self.assertEqual(search_response.json()[0]["score"], 1.0)
+        self.assertAlmostEqual(search_response.json()[0]["score"], 1 / 61 + 1 / 61)
 
     def test_upload_rejects_non_pdf_before_ingestion(self):
         with patch("main.ingest_pdf") as ingest:

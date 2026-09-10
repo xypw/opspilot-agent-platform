@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpsPilot 回归验证"
+  short_description: "按改动范围运行并解释 Python 与 Java 回归检查"
+  default_prompt: "请使用 $opspilot-regression 为我当前的 OpsPilot 改动选择、运行并解释合适的回归检查。"

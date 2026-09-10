@@ -8,6 +8,7 @@ import httpx
 
 from preview_tool_call import API_URL, extract_tool_preview, load_api_key, request_tool_call
 from tool_schema import (
+    CHECK_RETURN_ELIGIBILITY_TOOL,
     QUERY_ORDER_TOOL,
     QUERY_TICKET_TOOL,
     REQUEST_PRIORITY_CHANGE_TOOL,
@@ -45,7 +46,8 @@ class ToolPreviewTests(unittest.TestCase):
             self.assertEqual(payload["model"], "glm-4.7-flash")
             self.assertEqual(
                 payload["tools"],
-                [QUERY_TICKET_TOOL, QUERY_ORDER_TOOL, SEARCH_KNOWLEDGE_BASE_TOOL,
+                [QUERY_TICKET_TOOL, QUERY_ORDER_TOOL, CHECK_RETURN_ELIGIBILITY_TOOL,
+                 SEARCH_KNOWLEDGE_BASE_TOOL,
                  REQUEST_PRIORITY_CHANGE_TOOL],
             )
             self.assertEqual(payload["tool_choice"], "auto")
@@ -111,6 +113,15 @@ class ToolPreviewTests(unittest.TestCase):
         function = {
             "name": "request_priority_change",
             "arguments": '{"ticket_id":"T-1003","new_priority":"high"}',
+        }
+        message["tool_calls"][0]["function"] = function
+        self.assertEqual(extract_tool_preview(message), function)
+
+    def test_return_eligibility_is_an_allowed_tool(self):
+        message = sample_message()
+        function = {
+            "name": "check_return_eligibility",
+            "arguments": '{"order_id":"O-2001"}',
         }
         message["tool_calls"][0]["function"] = function
         self.assertEqual(extract_tool_preview(message), function)

@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from knowledge_models import KnowledgeSearchResult
+from order_service_client import OrderResponse, ReturnEligibilityResponse
 
 
 class ChatRequest(BaseModel):
@@ -23,6 +24,7 @@ class ChatResponse(BaseModel):
     model: str
     answer: str
     tool_name: str
-    tool_result: dict[str, str] | list[KnowledgeSearchResult] | None
+    # 订单包含日期、整数和 null，不能错误地声明成全部字符串。
+    tool_result: ReturnEligibilityResponse | OrderResponse | dict[str, str] | list[KnowledgeSearchResult] | None
     model_requests: int = Field(ge=0, description="真实外部模型请求次数；mock 固定为 0。")
     simulated_model_requests: int = Field(ge=0, description="仅模拟模式使用的 HTTP 交互次数。")

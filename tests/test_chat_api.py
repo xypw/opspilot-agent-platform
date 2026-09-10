@@ -62,7 +62,10 @@ class ChatApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["tool_name"], "query_order")
-        self.assertEqual(data["tool_result"], {"id": "O-2003", "status": "cancelled", "product": "显示器"})
+        self.assertEqual(data["tool_result"], {
+            "id": "O-2003", "status": "cancelled", "product": "显示器",
+            "delivered_at": None, "amount_cents": 159900,
+        })
         self.assertIn("显示器", data["answer"])
         self.assertIn("cancelled", data["answer"])
         self.assertIn("[模拟模式]", data["answer"])
@@ -75,9 +78,28 @@ class ChatApiTests(unittest.TestCase):
         key_loader.assert_not_called()
         network.assert_not_called()
 
+    def test_return_question_routes_to_java_eligibility_tool(self):
+        eligibility = {
+            "order_id": "O-2001",
+            "decision": "NO_REASON_ALLOWED",
+            "can_apply": True,
+            "reason_required": False,
+            "days_since_delivery": 7,
+            "reason": "WITHIN_7_DAY_NO_REASON_WINDOW",
+        }
+        with patch("tool_executor.RETURN_ELIGIBILITY_QUERY", return_value=eligibility) as query:
+            response = self.client.post(
+                "/chat", json={"message": "订单 O-2001 可以七天无理由退货吗？", "mode": "mock"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["tool_name"], "check_return_eligibility")
+        self.assertIn("可以申请退货", response.json()["answer"])
+        query.assert_called_once_with("O-2001")
+
     def test_ticket_and_order_requests_do_not_leak_state(self):
         for record_id, tool_name, expected_status in [
-            ("O-2001", "query_order", "shipped"),
+            ("O-2001", "query_order", "delivered"),
             ("T-1002", "query_ticket", "closed"),
             ("O-2002", "query_order", "processing"),
         ]:

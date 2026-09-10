@@ -40,6 +40,29 @@ QUERY_ORDER_TOOL = {
 }
 
 
+CHECK_RETURN_ELIGIBILITY_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "check_return_eligibility",
+        "description": (
+            "查询指定订单当前是否支持退货，以及是否必须提供退货理由；"
+            "用户询问能否退货、七天无理由或退货期限时使用。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "用户提供的订单编号，例如 O-2001；不要编造编号。",
+                }
+            },
+            "required": ["order_id"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
 REQUEST_PRIORITY_CHANGE_TOOL = {
     "type": "function",
     "function": {
@@ -100,10 +123,11 @@ SEARCH_KNOWLEDGE_BASE_TOOL = {
 }
 
 
-# Agent 可选择业务查询、知识检索或创建待确认操作；每轮只执行一个工具。
+# Agent 每一步只执行一个工具，但 LangGraph 可在有上限的循环中执行多个步骤。
 TOOLS = [
     QUERY_TICKET_TOOL,
     QUERY_ORDER_TOOL,
+    CHECK_RETURN_ELIGIBILITY_TOOL,
     SEARCH_KNOWLEDGE_BASE_TOOL,
     REQUEST_PRIORITY_CHANGE_TOOL,
 ]

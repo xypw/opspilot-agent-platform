@@ -1,0 +1,42 @@
+[
+  {
+    "case_id": "ticket-status-lookup",
+    "question": "查询工单 T-1003 的状态和优先级",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["query_ticket"],
+    "answer_must_contain": ["T-1003", "medium"],
+    "citation_required": false
+  },
+  {
+    "case_id": "refund-policy-rag",
+    "question": "退款多久到账",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["search_knowledge_base"],
+    "answer_must_contain": ["三个工作日"],
+    "citation_required": true
+  },
+  {
+    "case_id": "order-and-refund-policy",
+    "question": "查询订单 O-2001，并告诉我退款多久到账",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["query_order", "search_knowledge_base"],
+    "answer_must_contain": ["机械键盘", "三个工作日"],
+    "citation_required": true
+  },
+  {
+    "case_id": "return-requires-confirmation",
+    "question": "订单 O-2001 可以退货吗",
+    "expected_status": "WAITING_CONFIRMATION",
+    "expected_tools": ["check_return_eligibility"],
+    "answer_must_contain": ["确认"],
+    "citation_required": false
+  },
+  {
+    "case_id": "priority-change-requires-confirmation",
+    "question": "把工单 T-1003 的优先级改成 high",
+    "expected_status": "WAITING_CONFIRMATION",
+    "expected_tools": ["request_priority_change"],
+    "answer_must_contain": ["等待确认"],
+    "citation_required": false
+  }
+]

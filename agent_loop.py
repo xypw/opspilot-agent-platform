@@ -7,7 +7,8 @@ max_steps 限制模型请求总次数，最终回答也占一次；达到上限�
 import httpx
 
 from grounding_policy import answer_when_evidence_is_missing, append_verified_citations
-from preview_tool_call import build_initial_messages, extract_tool_preview, request_message
+from preview_tool_call import build_initial_messages, extract_tool_preview
+from retry_policy import request_message_with_retry
 from tool_executor import execute_tool
 from tool_messages import build_tool_message
 
@@ -31,7 +32,8 @@ def run_agent(api_key: str, client: httpx.Client, question: str, max_steps: int 
     )
 
     for step in range(max_steps):
-        message = request_message(api_key, client, messages)
+        # 这里只有模型 HTTP 请求会被重试；下一行之后的工具执行永远不会被本策略重复调用。
+        message = request_message_with_retry(api_key, client, messages)
 
         # 先检查消息格式，再决定结束还是执行工具。
         if message.get("role") != "assistant":

@@ -1,0 +1,154 @@
+"""多步 Agent 任务评测：同时检查状态、工具轨迹、必要事实和引用。"""
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from agent_graph import AgentGraphResponse, AgentGraphStatus
+
+
+class AgentEvaluationCase(BaseModel):
+    """人工定义的标准答案；不让被测 Agent 自己决定自己是否成功。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    case_id: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    expected_status: AgentGraphStatus = "COMPLETED"
+    expected_tools: list[str] = Field(min_length=1)
+    answer_must_contain: list[str] = Field(default_factory=list)
+    citation_required: bool = False
+
+
+class AgentEvaluationResult(BaseModel):
+    """一条标准用例与一次 Agent 实际运行的评测结果。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    case_id: str = Field(min_length=1)
+    success: bool
+    failure_reasons: list[str] = Field(default_factory=list)
+
+
+class AgentEvaluationSummary(BaseModel):
+    """一批 Agent 评测结果的整体指标和逐条明细。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    total_cases: int = Field(ge=0)
+    successful_cases: int = Field(ge=0)
+    failed_cases: int = Field(ge=0)
+    task_success_rate: float = Field(ge=0.0, le=1.0)
+    failure_counts: dict[str, int] = Field(default_factory=dict)
+    results: list[AgentEvaluationResult] = Field(default_factory=list)
+
+
+def is_task_successful(case: AgentEvaluationCase, response: AgentGraphResponse) -> bool:
+    """只有所有验收条件都满足时才返回 True。"""
+    # 从每一步工具轨迹中只取工具名，并保留实际调用顺序。
+    actual_tools = [step.tool_name for step in response.tool_trace]
+
+    # 检查 Agent 最终状态是否符合这条评测用例的预期。
+    status_matches = response.status == case.expected_status
+
+    # 列表直接比较会同时检查工具名称、数量和调用顺序。
+    tools_match = actual_tools == case.expected_tools
+
+    # all() 只有在每段必要文字都出现在回答中时才返回 True。
+    answer_matches = all(
+        required_text in response.answer
+        for required_text in case.answer_must_contain
+    )
+
+    # 不要求引用时直接通过；要求引用时必须出现统一的来源标记。
+    citation_matches = (
+        not case.citation_required
+        or "来源：" in response.answer
+    )
+
+    # 四类验收条件必须全部成立，整条 Agent 任务才算成功。
+    return status_matches and tools_match and answer_matches and citation_matches
+
+
+def collect_failure_reasons(
+    case: AgentEvaluationCase,
+    response: AgentGraphResponse,
+) -> list[str]:
+    """返回一条 Agent 运行的全部失败原因；空列表表示没有失败。"""
+    # 保留实际工具的调用顺序，用于和标准轨迹比较。
+    actual_tools = [step.tool_name for step in response.tool_trace]
+
+    # 同一次运行可能有多个问题，所以使用列表持续收集，不能遇到一个错误就 return。
+    failure_reasons: list[str] = []
+
+    # 状态错误时记录状态不匹配。
+    if response.status != case.expected_status:
+        failure_reasons.append("status_mismatch")
+
+    # 工具名称、数量或顺序不同，都记录为工具轨迹不匹配。
+    if actual_tools != case.expected_tools:
+        failure_reasons.append("tool_sequence_mismatch")
+
+    # 只要有一段必要文字缺失，就记录一次回答内容不完整。
+    if not all(
+        required_text in response.answer
+        for required_text in case.answer_must_contain
+    ):
+        failure_reasons.append("missing_required_text")
+
+    # 只有明确要求引用却没有来源标记时，才记录引用缺失。
+    if case.citation_required and "来源：" not in response.answer:
+        failure_reasons.append("missing_citation")
+
+    return failure_reasons
+
+
+def evaluate_response(
+    case: AgentEvaluationCase,
+    response: AgentGraphResponse,
+) -> AgentEvaluationResult:
+    """评测一条 Agent 响应，并生成可保存、可聚合的结构化结果。"""
+    # 先收集全部失败原因，避免只得到一个缺少诊断信息的布尔值。
+    failure_reasons = collect_failure_reasons(case, response)
+
+    # 空列表在 Python 中是假值；没有失败原因就表示任务成功。
+    return AgentEvaluationResult(
+        case_id=case.case_id,
+        success=not failure_reasons,
+        failure_reasons=failure_reasons,
+    )
+
+
+def build_evaluation_summary(
+    results: list[AgentEvaluationResult],
+) -> AgentEvaluationSummary:
+    """聚合逐条结果，计算任务成功率和失败原因分布。"""
+    # 总用例数是成功率的分母。
+    total_cases = len(results)
+
+    # Python 中 True 可以按 1 参与求和，False 可以按 0 参与求和。
+    successful_cases = sum(result.success for result in results)
+
+    # 每条任务只能成功或失败，因此失败数可以用总数减成功数得到。
+    failed_cases = total_cases - successful_cases
+
+    # 一个失败任务可能贡献多个失败原因，所以需要两层循环分别计数。
+    failure_counts: dict[str, int] = {}
+    for result in results:
+        for reason in result.failure_reasons:
+            failure_counts[reason] = failure_counts.get(reason, 0) + 1
+
+    # 空评测集没有可计算的成功率，这里约定返回 0.0，避免除以零。
+    task_success_rate = (
+        successful_cases / total_cases
+        if total_cases > 0
+        else 0.0
+    )
+
+    # 同时保留汇总指标和逐条明细，便于定位具体失败用例。
+    return AgentEvaluationSummary(
+        total_cases=total_cases,
+        successful_cases=successful_cases,
+        failed_cases=failed_cases,
+        task_success_rate=task_success_rate,
+        failure_counts=failure_counts,
+        results=results,
+    )

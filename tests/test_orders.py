@@ -20,13 +20,19 @@ class OrderQueryTests(unittest.TestCase):
     def test_returns_first_order(self):
         self.assertEqual(
             query_order("O-2001"),
-            {"id": "O-2001", "status": "shipped", "product": "机械键盘"},
+            {
+                "id": "O-2001", "status": "delivered", "product": "机械键盘",
+                "delivered_at": "2026-08-31", "amount_cents": 39900,
+            },
         )
 
     def test_returns_last_order(self):
         self.assertEqual(
             query_order("O-2003"),
-            {"id": "O-2003", "status": "cancelled", "product": "显示器"},
+            {
+                "id": "O-2003", "status": "cancelled", "product": "显示器",
+                "delivered_at": None, "amount_cents": 159900,
+            },
         )
 
     def test_returns_none_when_not_found(self):

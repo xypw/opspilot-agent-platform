@@ -6,10 +6,44 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
+import tool_executor
 from tool_executor import execute_tool
 
 
 class ToolExecutorTests(unittest.TestCase):
+    def test_return_eligibility_uses_injected_java_query_after_validation(self):
+        result_from_java = {
+            "order_id": "O-2001",
+            "decision": "NO_REASON_ALLOWED",
+            "can_apply": True,
+            "reason_required": False,
+            "days_since_delivery": 7,
+            "reason": "WITHIN_7_DAY_NO_REASON_WINDOW",
+        }
+        injected_query = unittest.mock.Mock(return_value=result_from_java)
+
+        with patch.object(tool_executor, "RETURN_ELIGIBILITY_QUERY", injected_query):
+            result = execute_tool(
+                "check_return_eligibility", '{"order_id":"  O-2001  "}'
+            )
+
+        injected_query.assert_called_once_with("O-2001")
+        self.assertEqual(result, result_from_java)
+
+    def test_order_branch_uses_injected_query_after_validation(self):
+        injected_query = unittest.mock.Mock(
+            return_value={
+                "id": "O-2002", "status": "processing", "product": "无线鼠标",
+                "delivered_at": None, "amount_cents": 12900,
+            }
+        )
+
+        with patch.object(tool_executor, "ORDER_QUERY", injected_query):
+            result = execute_tool("query_order", '{"order_id":"  O-2002  "}')
+
+        injected_query.assert_called_once_with("O-2002")
+        self.assertEqual(result["id"], "O-2002")
+
     def test_queries_return_real_local_records(self):
         self.assertEqual(
             execute_tool("query_ticket", '{"ticket_id":"T-1003"}'),
@@ -17,7 +51,10 @@ class ToolExecutorTests(unittest.TestCase):
         )
         self.assertEqual(
             execute_tool("query_order", '{"order_id":"O-2003"}'),
-            {"id": "O-2003", "status": "cancelled", "product": "显示器"},
+            {
+                "id": "O-2003", "status": "cancelled", "product": "显示器",
+                "delivered_at": None, "amount_cents": 159900,
+            },
         )
 
     def test_missing_records_return_none(self):
@@ -39,7 +76,7 @@ class ToolExecutorTests(unittest.TestCase):
             ("query_order", "order_id", "O-2002"),
         ]:
             with self.subTest(tool=name):
-                with patch("tool_executor.query_ticket") as ticket_query, \
+                with patch.object(tool_executor.TICKET_REPOSITORY, "get_by_id") as ticket_query, \
                      patch("tool_executor.query_order") as order_query:
                     selected, other = (
                         (ticket_query, order_query) if name == "query_ticket"
@@ -59,6 +96,11 @@ class ToolExecutorTests(unittest.TestCase):
             with self.subTest(tool=name):
                 self.assert_no_query(name, json.dumps(args), ValidationError)
 
+        with patch.object(tool_executor, "RETURN_ELIGIBILITY_QUERY") as eligibility_query:
+            with self.assertRaises(ValidationError):
+                execute_tool("check_return_eligibility", '{"ticket_id":"T-1003"}')
+            eligibility_query.assert_not_called()
+
     def test_invalid_parameters_are_rejected_before_either_query(self):
         for name, field in [("query_ticket", "ticket_id"), ("query_order", "order_id")]:
             for args in [None, [], "not an object", {}, {field: None},
@@ -77,7 +119,7 @@ class ToolExecutorTests(unittest.TestCase):
                 self.assert_no_query(name, '{"order_id":"O-2003"}', ValueError)
 
     def assert_no_query(self, name, arguments_json, error_type):
-        with patch("tool_executor.query_ticket") as ticket_query, \
+        with patch.object(tool_executor.TICKET_REPOSITORY, "get_by_id") as ticket_query, \
              patch("tool_executor.query_order") as order_query:
             with self.assertRaises(error_type):
                 execute_tool(name, arguments_json)

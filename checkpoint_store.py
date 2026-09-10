@@ -5,7 +5,7 @@ from threading import Lock
 from uuid import uuid4
 
 from checkpoint_models import AgentRunCheckpoint
-from pending_actions import ACTION_STORE, PendingActionStore
+from pending_actions import ACTION_STORE, ActionStateError, PendingActionStore
 
 
 class RunNotFoundError(LookupError):
@@ -109,6 +109,8 @@ class AgentRunStore:
                 if run.pending_action_id is not None:
                     return run.model_copy(deep=True)
                 raise RunStateError("该 Agent 运行没有待确认操作。")
+            if run.status == "CANCELLED":
+                raise RunStateError("该 Agent 运行已取消，不能再确认。")
             if run.pending_action_id is None:
                 raise RunStateError("Checkpoint 状态与待确认操作不一致。")
 
@@ -125,6 +127,30 @@ class AgentRunStore:
             })
             self._runs[run_id] = completed
             return completed.model_copy(deep=True)
+
+    def cancel(self, run_id: str) -> AgentRunCheckpoint:
+        """从 WAITING_CONFIRMATION 取消，且同步取消底层 PendingAction。"""
+        with self._lock:
+            run = self._runs.get(run_id)
+            if run is None:
+                raise RunNotFoundError("Agent 运行不存在。")
+            if run.status == "CANCELLED":
+                # 客户端超时重试取消请求时，仍返回同一个最终状态。
+                return run.model_copy(deep=True)
+            if run.status == "COMPLETED":
+                raise RunStateError("已完成的 Agent 运行不能取消。")
+            if run.pending_action_id is None:
+                raise RunStateError("Checkpoint 状态与待确认操作不一致。")
+
+            action = self._action_store.cancel(run.pending_action_id)
+            cancelled = run.model_copy(update={
+                "status": "CANCELLED",
+                "tool_result": action.model_dump(),
+                "answer": f"已取消操作 {action.action_id}；工单优先级未修改。",
+                "version": run.version + 1,
+            })
+            self._runs[run_id] = cancelled
+            return cancelled.model_copy(deep=True)
 
 
 RUN_STORE = AgentRunStore(ACTION_STORE)

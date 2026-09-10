@@ -1,13 +1,30 @@
 # OpsPilot
 
-企业知识库与智能工单 Agent 平台，按可运行的小功能逐步开发。
+电商售后、企业知识库与工单协同 Agent，按可运行的小功能逐步开发。
+
+项目级编码 Agent 约定见 [AGENTS.md](AGENTS.md)，真实的需求拆解、上下文选择、
+测试与错误复盘示例见 [AI_CODING_WORKFLOW.md](AI_CODING_WORKFLOW.md)。项目内的
+[回归验证Skill](.codex/skills/opspilot-regression/SKILL.md)按Python、Java和跨服务边界选择检查。
+
+## 新增学习入口：Java 业务服务（2026-09-07）
+
+第一步新增了 `business-service/` 只读订单接口和 Python HTTP 客户端，详见
+[本节说明与练习](business-service/README.md)。使用虚构订单，不调用模型。
+原 `/chat`、`/orders` 和默认订单工具尚未切换；下面较早的课程记录是阶段历史，
+不能用来判断全部功能的当前完成度。
 
 ## 当前状态
 
 - 已实现：FastAPI 健康检查、自动接口文档、工单查询、`POST /chat`（显式 mock/live 模式）、函数与接口测试、单次模型工具选择预览。
 - 已实现脚本：在工单和订单两个只读工具中选择一个，校验参数、执行查询、回传结果、生成回答；最多两次模型请求，已通过本地模拟 HTTP 测试。
 - 已提供独立的多轮 Agent 循环参考实现与离线演示，尚未接入 `/chat`，也未完成真实模型的多轮验收。
-- 尚未实现：统一工具错误结果、RAG、数据库和部署。
+- 已实现：RAG混合检索与重排序、LangGraph状态与人工确认、Redis Checkpoint、
+  PostgreSQL/pgvector、Java订单规则服务，以及退货草稿、预审、确认、幂等和冲突恢复流程。
+- 已实现：Java 退货草稿与正式申请的可切换内存/PostgreSQL 存储，使用 Flyway V2 迁移、
+  数据库事务、行锁和唯一约束保证跨重启恢复与 `draft_id` 幂等。
+- 已实现：LangGraph 受限多步工具循环，单次任务最多执行 3 个工具步骤；响应返回
+  `tool_trace`，RAG 证据跨步骤累计并由程序生成引用。
+- 尚未完成：退货过期数据清理、统一可观测性、完整部署和真实模型任务评测。
 - 已完成本地练习：解析 JSON 参数，用 Pydantic 校验并规范化编号，再调用查询函数。
 - 当前真实闭环验证：接口曾返回 429 / 1305（模型访问量过大），仍需成功的真实请求验收。
 

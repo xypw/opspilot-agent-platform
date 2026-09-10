@@ -43,7 +43,11 @@ class KnowledgeBaseTests(unittest.TestCase):
             }
         ]
 
-        with patch("knowledge_base.VECTOR_STORE", store):
+        # 显式关闭外部 Reranker，让单元测试不受开发者本地 .env 配置影响。
+        with (
+            patch("knowledge_base.VECTOR_STORE", store),
+            patch("knowledge_base.RERANKER", None),
+        ):
             index_knowledge_chunks(chunks)
             results = execute_tool(
                 "search_knowledge_base",
@@ -51,7 +55,7 @@ class KnowledgeBaseTests(unittest.TestCase):
             )
 
         self.assertEqual(results[0]["chunk_id"], "uploaded-p1-c0")
-        self.assertEqual(results[0]["score"], 1.0)
+        self.assertAlmostEqual(results[0]["score"], 1 / 61 + 1 / 61)
 
 
 if __name__ == "__main__":

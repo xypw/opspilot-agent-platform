@@ -1,0 +1,44 @@
+services:
+  postgres:
+    # 固定 PostgreSQL 16 与 pgvector 版本；不使用 latest，避免课程环境无提示升级。
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    container_name: opspilot-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      # 本地 .env 只保存开发配置，且已被 .gitignore 排除。
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # 数据卷让容器重建后仍保留数据库文件。
+      - opspilot_postgres_data:/var/lib/postgresql/data
+      # 仅在首次初始化空数据卷时执行：创建 pgvector、表和演示数据。
+      - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    # Redis Stack 额外包含 RedisJSON 与 RediSearch，供 LangGraph RedisSaver 保存并索引 Checkpoint。
+    image: redis/redis-stack-server:latest
+    container_name: opspilot-redis
+    ports:
+      - "6379:6379"
+    environment:
+      # 不覆盖 Redis Stack 默认启动脚本；由脚本加载 RedisJSON 与 RediSearch。
+      # AOF 让 Redis 重启后也能从磁盘恢复数据；教学版仍需注意备份与过期策略。
+      REDIS_ARGS: "--appendonly yes"
+    volumes:
+      - opspilot_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  opspilot_postgres_data:
+  opspilot_redis_data:

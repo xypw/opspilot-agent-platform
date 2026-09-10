@@ -1,12 +1,16 @@
 """OpsPilot 的最小知识库检索基线。
 
-当前先用内存中的知识片段和关键词重叠分数跑通工具闭环。后续会保持相同的
-返回结构，把检索实现替换为 PostgreSQL 全文检索、pgvector 和重排序。
+已上传文档走“向量召回 + 关键词召回 + RRF 融合 + 可选 Reranker”。后续替换为
+PostgreSQL 全文检索和 pgvector 时，仍保持相同的返回结构。
 """
 
-import re
+import logging
 
 from embedding_service import LocalEmbeddingService
+from hybrid_search import hybrid_search
+from keyword_search import keyword_search
+from reranker import RerankerUnavailableError
+from siliconflow_reranker import build_configured_reranker
 from vector_store import InMemoryVectorStore
 
 
@@ -33,6 +37,9 @@ KNOWLEDGE_CHUNKS = [
 
 # 当前单进程教学版共享这个对象；后续替换为 PostgreSQL/pgvector。
 VECTOR_STORE = InMemoryVectorStore(LocalEmbeddingService())
+# 没有配置免费 Reranker Key 时值为 None，混合检索会安全地停留在 RRF 排名。
+RERANKER = build_configured_reranker()
+LOGGER = logging.getLogger(__name__)
 
 
 def index_knowledge_chunks(chunks: list[dict]) -> None:
@@ -40,42 +47,43 @@ def index_knowledge_chunks(chunks: list[dict]) -> None:
     VECTOR_STORE.add(chunks)
 
 
-def _search_terms(text: str) -> set[str]:
-    """英文按单词匹配；连续中文生成二元词片，作为向量检索前的简单基线。"""
-    normalized = text.lower().strip()
-    terms = set(re.findall(r"[a-z0-9_-]+", normalized))
-    for chinese_text in re.findall(r"[\u4e00-\u9fff]+", normalized):
-        if len(chinese_text) == 1:
-            terms.add(chinese_text)
-        else:
-            terms.update(chinese_text[index:index + 2] for index in range(len(chinese_text) - 1))
-    return terms
-
-
 def search_knowledge_base(query: str, limit: int = 3) -> list[dict]:
-    """优先搜索上传文档；暂无上传数据时使用内置关键词样例。"""
+    """上传文档使用混合检索；暂无上传数据时搜索内置样例。"""
     if VECTOR_STORE.records:
-        semantic_results = VECTOR_STORE.search(query, limit)
+        try:
+            hybrid_results = hybrid_search(
+                query,
+                VECTOR_STORE.records,
+                VECTOR_STORE.embedding_service,
+                limit,
+                reranker=RERANKER,
+            )
+        except RerankerUnavailableError:
+            # 重排是“提升质量”的可选阶段，短暂故障不应该让整个知识问答接口失败。
+            LOGGER.warning("Reranker 暂不可用，本次检索降级为 RRF", exc_info=True)
+            hybrid_results = hybrid_search(
+                query,
+                VECTOR_STORE.records,
+                VECTOR_STORE.embedding_service,
+                limit,
+            )
         return [
             {
                 **{
                     key: value
                     for key, value in result.items()
-                    if key != "semantic_score"
+                    if key not in {"semantic_score", "keyword_score", "rrf_score", "rerank_score"}
                 },
-                "score": result["semantic_score"],
+                # 有精排分数就代表最终排序由模型决定；否则使用融合分数。
+                "score": result.get("rerank_score", result["rrf_score"]),
             }
-            for result in semantic_results
+            for result in hybrid_results
         ]
-
-    query_terms = _search_terms(query)
-    ranked_results = []
-
-    for chunk in KNOWLEDGE_CHUNKS:
-        searchable_text = f"{chunk['title']} {chunk['content']}"
-        score = len(query_terms & _search_terms(searchable_text))
-        if score > 0:
-            ranked_results.append({**chunk, "score": score})
-
-    ranked_results.sort(key=lambda item: (-item["score"], item["chunk_id"]))
-    return ranked_results[:limit]
+    keyword_results = keyword_search(query, KNOWLEDGE_CHUNKS, limit)
+    return [
+        {
+            **{key: value for key, value in result.items() if key != "keyword_score"},
+            "score": result["keyword_score"],
+        }
+        for result in keyword_results
+    ]

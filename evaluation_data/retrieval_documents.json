@@ -1,0 +1,74 @@
+[
+  {
+    "chunk_id": "refund-emergency-eta-p1-c1",
+    "title": "紧急退款处理规则",
+    "page": 1,
+    "content": "紧急退款申请审核通过后，款项通常在三个小时内原路到账。"
+  },
+  {
+    "chunk_id": "refund-standard-eta-p2-c1",
+    "title": "普通退款到账说明",
+    "page": 2,
+    "content": "普通退款申请审核通过后，款项通常在三个工作日内原路到账。"
+  },
+  {
+    "chunk_id": "refund-eligibility-p2-c2",
+    "title": "退款申请条件",
+    "page": 2,
+    "content": "未发货订单可直接申请退款；已签收订单需在售后期内提交退款申请。"
+  },
+  {
+    "chunk_id": "refund-cancel-p2-c3",
+    "title": "退款申请撤销说明",
+    "page": 2,
+    "content": "退款申请进入审核前可以撤销；审核通过后不能自行撤销。"
+  },
+  {
+    "chunk_id": "ticket-high-sla-p4-c1",
+    "title": "高优先级工单服务规范",
+    "page": 4,
+    "content": "高优先级工单应在二十分钟内首次响应，并持续记录处理进展。"
+  },
+  {
+    "chunk_id": "ticket-normal-sla-p4-c2",
+    "title": "普通优先级工单服务规范",
+    "page": 4,
+    "content": "普通优先级工单应在一个工作日内首次响应。"
+  },
+  {
+    "chunk_id": "ticket-priority-change-p5-c1",
+    "title": "工单优先级变更流程",
+    "page": 5,
+    "content": "修改工单优先级需要说明原因；高优先级变更必须经用户确认后执行。"
+  },
+  {
+    "chunk_id": "invoice-application-p1-c1",
+    "title": "电子发票申请指南",
+    "page": 1,
+    "content": "订单完成后可在订单详情页申请电子发票，并填写接收邮箱。"
+  },
+  {
+    "chunk_id": "invoice-delivery-p1-c2",
+    "title": "电子发票发送说明",
+    "page": 1,
+    "content": "电子发票开具完成后会发送至申请时填写的邮箱。"
+  },
+  {
+    "chunk_id": "order-status-p3-c1",
+    "title": "订单状态说明",
+    "page": 3,
+    "content": "订单状态分为待支付、处理中、已完成和已取消，可通过订单编号查询。"
+  },
+  {
+    "chunk_id": "order-cancel-p3-c2",
+    "title": "订单取消规则",
+    "page": 3,
+    "content": "待支付订单可直接取消；已进入处理中的订单需要联系人工客服处理。"
+  },
+  {
+    "chunk_id": "payment-permission-p6-c1",
+    "title": "支付错误码手册",
+    "page": 6,
+    "content": "错误码 PAYMENT_403 表示当前账户没有支付权限，请联系管理员开通权限。"
+  }
+]

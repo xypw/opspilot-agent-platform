@@ -14,10 +14,11 @@ from agent_loop import run_agent
 from main import app
 from pending_actions import (
     ActionNotFoundError,
+    ActionStateError,
     PendingActionStore,
     TicketNotFoundError,
 )
-from tickets import TICKETS, change_ticket_priority, query_ticket
+from tickets import TICKETS, query_ticket
 from tool_args import RequestPriorityChangeArgs
 from tool_executor import execute_tool
 from tool_schema import REQUEST_PRIORITY_CHANGE_TOOL
@@ -41,7 +42,11 @@ class PendingActionTests(unittest.TestCase):
 
     def test_confirmation_executes_exactly_once(self):
         action = self.store.propose_priority_change("T-1003", "high")
-        with patch("pending_actions.change_ticket_priority", wraps=change_ticket_priority) as change:
+        with patch.object(
+            self.store._ticket_repository,
+            "change_priority",
+            wraps=self.store._ticket_repository.change_priority,
+        ) as change:
             first = self.store.confirm(action.action_id)
             second = self.store.confirm(action.action_id)
         self.assertEqual(first.status, "executed")
@@ -58,6 +63,16 @@ class PendingActionTests(unittest.TestCase):
     def test_unknown_action_cannot_be_confirmed(self):
         with self.assertRaises(ActionNotFoundError):
             self.store.confirm("act_missing")
+
+    def test_cancelled_action_cannot_be_confirmed_or_mutate_ticket(self):
+        action = self.store.propose_priority_change("T-1003", "high")
+        cancelled = self.store.cancel(action.action_id)
+
+        self.assertEqual(cancelled.status, "cancelled")
+        self.assertEqual(self.store.cancel(action.action_id), cancelled)
+        with self.assertRaises(ActionStateError):
+            self.store.confirm(action.action_id)
+        self.assertEqual(query_ticket("T-1003")["priority"], "medium")
 
     def test_argument_model_rejects_invalid_or_extra_values(self):
         for args in [

@@ -187,11 +187,12 @@ class RoundtripTests(unittest.TestCase):
         self.assertEqual(trace["tool_name"], "query_order")
         self.assertEqual(trace["tool_result"], {
             "id": "O-2003", "status": "cancelled", "product": "显示器",
+            "delivered_at": None, "amount_cents": 159900,
         })
         self.assertEqual(len(requests), 2)
         self.assertEqual(
             {tool["function"]["name"] for tool in requests[0]["tools"]},
-            {"query_ticket", "query_order", "search_knowledge_base",
+            {"query_ticket", "query_order", "check_return_eligibility", "search_knowledge_base",
              "request_priority_change"},
         )
         self.assertNotIn("tools", requests[1])

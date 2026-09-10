@@ -6,3 +6,7 @@ pydantic==2.13.5
 pypdf==6.7.5
 python-multipart==0.0.22
 fastembed==0.8.0
+redis==7.3.0
+langgraph==1.2.11
+langgraph-checkpoint-redis==0.5.2
+psycopg[binary]==3.3.4

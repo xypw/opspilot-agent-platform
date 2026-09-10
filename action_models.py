@@ -13,4 +13,5 @@ class PendingAction(BaseModel):
     ticket_id: str = Field(min_length=1)
     previous_priority: Literal["low", "medium", "high"]
     new_priority: Literal["low", "medium", "high"]
-    status: Literal["pending", "executed"]
+    # cancelled 让底层写操作也知道“用户已经反悔”，不能只靠上层页面隐藏按钮。
+    status: Literal["pending", "executed", "cancelled"]
