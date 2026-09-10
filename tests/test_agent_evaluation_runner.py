@@ -10,7 +10,9 @@ from agent_evaluation import AgentEvaluationCase
 from agent_evaluation_runner import (
     build_langgraph_runner,
     load_evaluation_cases,
+    require_external_model_permission,
     run_evaluation_cases,
+    select_evaluation_cases,
 )
 from agent_evaluation_runtime import build_isolated_evaluation_graph
 from agent_graph import AgentGraphResponse
@@ -75,6 +77,8 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
 
         self.assertEqual(received_arguments, [("ticket-case", "查询工单 T-1003")])
         self.assertEqual(summary.task_success_rate, 1.0)
+        self.assertGreaterEqual(summary.results[0].duration_ms, 0.0)
+        self.assertEqual(summary.results[0].actual_tools, ["query_ticket"])
 
     def test_one_runner_error_does_not_stop_later_cases(self):
         cases = [
@@ -95,6 +99,34 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(summary.successful_cases, 1)
         self.assertEqual(summary.failure_counts, {"runner_error": 1})
         self.assertEqual(summary.results[0].error_type, "TimeoutError")
+        self.assertIsNone(summary.results[0].actual_answer)
+
+    def test_selected_cases_keep_requested_order(self):
+        cases = load_evaluation_cases(CASES_FILE)
+
+        selected = select_evaluation_cases(
+            cases,
+            ["order-and-refund-policy", "ticket-status-lookup"],
+        )
+
+        self.assertEqual(
+            [case.case_id for case in selected],
+            ["order-and-refund-policy", "ticket-status-lookup"],
+        )
+
+    def test_unknown_selected_case_is_rejected(self):
+        cases = load_evaluation_cases(CASES_FILE)
+
+        with self.assertRaisesRegex(ValueError, "未知 Agent 评测用例"):
+            select_evaluation_cases(cases, ["missing-case"])
+
+    def test_live_mode_requires_explicit_external_permission(self):
+        with self.assertRaisesRegex(PermissionError, "--allow-external-model"):
+            require_external_model_permission("live", allowed=False)
+
+        # mock 不出网，无需额外开关；live 只有显式允许后才通过守卫。
+        require_external_model_permission("mock", allowed=False)
+        require_external_model_permission("live", allowed=True)
 
     def test_all_fixed_cases_run_against_the_isolated_mock_graph(self):
         # 这不是伪造响应：五条问题会真实经过 LangGraph 节点、工具和中断路由。

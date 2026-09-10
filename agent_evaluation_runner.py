@@ -4,6 +4,7 @@ import json
 import re
 from collections.abc import Callable
 from pathlib import Path
+from time import perf_counter
 from uuid import uuid4
 
 from agent_evaluation import (
@@ -54,6 +55,8 @@ def run_evaluation_cases(
     # 每条用例产生一条结构化结果，最后统一计算成功率和失败原因分布。
     results: list[AgentEvaluationResult] = []
     for case in cases:
+        # 使用单调时钟测量耗时，不受系统时间被用户或网络校时修改的影响。
+        started_at = perf_counter()
         try:
             # 只把编号和用户问题交给 Agent，不能把 expected_tools 等答案传进去。
             response = run_agent(case.case_id, case.question)
@@ -63,15 +66,43 @@ def run_evaluation_cases(
                 case_id=case.case_id,
                 success=False,
                 failure_reasons=["runner_error"],
+                duration_ms=_elapsed_ms(started_at),
                 error_type=type(error).__name__,
             ))
             continue
 
         # 正常响应沿用已经测试过的状态、工具顺序、必要事实和引用判断。
-        results.append(evaluate_response(case, response))
+        result = evaluate_response(case, response)
+        results.append(result.model_copy(update={"duration_ms": _elapsed_ms(started_at)}))
 
     # 汇总逻辑只依赖结构化结果，不关心底层使用 Mock 还是真实模型。
     return build_evaluation_summary(results)
+
+
+def select_evaluation_cases(
+    cases: list[AgentEvaluationCase],
+    selected_case_ids: list[str],
+) -> list[AgentEvaluationCase]:
+    """按明确编号选择小批量用例；空列表表示运行全部。"""
+    if not selected_case_ids:
+        return cases
+    if len(selected_case_ids) != len(set(selected_case_ids)):
+        raise ValueError("--case-id 不能重复。")
+
+    cases_by_id = {case.case_id: case for case in cases}
+    unknown_ids = [case_id for case_id in selected_case_ids if case_id not in cases_by_id]
+    if unknown_ids:
+        raise ValueError(f"未知 Agent 评测用例：{', '.join(unknown_ids)}")
+    # 按命令行指定顺序运行，方便从最简单的单工具场景开始逐步扩大。
+    return [cases_by_id[case_id] for case_id in selected_case_ids]
+
+
+def require_external_model_permission(mode: AgentMode, allowed: bool) -> None:
+    """live 模式必须由调用方明确开启，避免无意发送数据或消耗额度。"""
+    if mode == "live" and not allowed:
+        raise PermissionError(
+            "live 评测会把问题发送给外部模型；请确认数据范围后添加 --allow-external-model。"
+        )
 
 
 def build_langgraph_runner(
@@ -104,3 +135,8 @@ def _new_evaluation_thread_id(case_id: str) -> str:
     # case_id 极端情况下可能全部是中文；此时仍生成合法的通用名称。
     readable_part = safe_case_id or "case"
     return f"eval-{readable_part}-{uuid4().hex[:12]}"
+
+
+def _elapsed_ms(started_at: float) -> float:
+    """把单调时钟差转换为便于报告阅读的毫秒数。"""
+    return round((perf_counter() - started_at) * 1000, 3)

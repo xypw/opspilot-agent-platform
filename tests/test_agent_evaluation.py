@@ -99,6 +99,11 @@ class AgentEvaluationTests(unittest.TestCase):
         self.assertEqual(result.case_id, "order-and-refund-policy")
         self.assertFalse(result.success)
         self.assertEqual(result.failure_reasons, ["missing_citation"])
+        self.assertEqual(result.actual_status, "COMPLETED")
+        self.assertEqual(result.actual_tools, ["query_order", "search_knowledge_base"])
+        self.assertEqual(result.actual_answer, "商品是机械键盘，退款三个工作日到账。")
+        self.assertEqual(result.model_requests, 0)
+        self.assertEqual(result.simulated_model_requests, 3)
 
     def test_summary_counts_failed_cases_and_failure_reasons_separately(self):
         results = [

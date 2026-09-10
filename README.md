@@ -161,10 +161,22 @@ python -m venv .venv
 报告包含任务总数、成功数、失败数、任务成功率、失败原因分布和逐条结果。执行器只把
 `case_id` 与 `question` 交给 Agent，不把预期工具、必要文字或引用要求传入被测系统。
 每条用例使用独立 `thread_id`；一条运行异常会记录为 `runner_error`，但不会阻止后续用例。
+逐条结果还记录实际状态、实际工具轨迹、回答、耗时，以及真实/模拟模型请求次数。
 
 `--runtime app` 会改为使用当前应用的 Redis、PostgreSQL 和 Java 服务，适合基础设施启动后的
 集成验收。`--mode live` 会读取本地密钥并请求外部模型，不能把 `mock` 的 100% 成功率写成
-真实模型指标；执行真实评测前还要确认测试问题允许发送给模型供应商。
+真实模型指标；执行真实评测前还要确认测试问题允许发送给模型供应商。真实模式必须显式
+添加 `--allow-external-model`，并可重复使用 `--case-id` 从一条低风险用例开始，例如：
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\run_agent_evaluation.py `
+  --mode live --runtime isolated `
+  --case-id ticket-status-lookup --allow-external-model
+```
+
+2026-09-10 的一次受控真实评测中，该单工具用例正确选择 `query_ticket`，最终状态为
+`COMPLETED`，必要事实检查通过；共请求真实模型 2 次，耗时约 18.6 秒。这里只验证了 1 条
+用例，不能据此宣称完整测试集或未知问题达到 100% 成功率。
 
 ## Tool Calling：先观察模型选择，不执行工具
 

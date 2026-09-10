@@ -26,6 +26,13 @@ class AgentEvaluationResult(BaseModel):
     case_id: str = Field(min_length=1)
     success: bool
     failure_reasons: list[str] = Field(default_factory=list)
+    # 真实评测必须保留实际行为，否则失败后无法判断是路由、回答还是状态问题。
+    actual_status: AgentGraphStatus | None = None
+    actual_tools: list[str] = Field(default_factory=list)
+    actual_answer: str | None = None
+    duration_ms: float = Field(default=0.0, ge=0.0)
+    model_requests: int = Field(default=0, ge=0)
+    simulated_model_requests: int = Field(default=0, ge=0)
     # 批量运行时只保存异常类型，不保存可能含有业务数据或密钥的原始异常消息。
     error_type: str | None = None
 
@@ -116,6 +123,11 @@ def evaluate_response(
         case_id=case.case_id,
         success=not failure_reasons,
         failure_reasons=failure_reasons,
+        actual_status=response.status,
+        actual_tools=[step.tool_name for step in response.tool_trace],
+        actual_answer=response.answer,
+        model_requests=response.model_requests,
+        simulated_model_requests=response.simulated_model_requests,
     )
 
 
