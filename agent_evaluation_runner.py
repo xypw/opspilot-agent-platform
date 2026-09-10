@@ -62,12 +62,15 @@ def run_evaluation_cases(
             response = run_agent(case.case_id, case.question)
         except Exception as error:
             # 批量任务的边界允许隔离单条异常；Exception 不会吞掉退出等系统信号。
+            status_code, provider_code = _safe_error_codes(error)
             results.append(AgentEvaluationResult(
                 case_id=case.case_id,
                 success=False,
                 failure_reasons=["runner_error"],
                 duration_ms=_elapsed_ms(started_at),
                 error_type=type(error).__name__,
+                error_status_code=status_code,
+                provider_error_code=provider_code,
             ))
             continue
 
@@ -140,3 +143,19 @@ def _new_evaluation_thread_id(case_id: str) -> str:
 def _elapsed_ms(started_at: float) -> float:
     """把单调时钟差转换为便于报告阅读的毫秒数。"""
     return round((perf_counter() - started_at) * 1000, 3)
+
+
+def _safe_error_codes(error: Exception) -> tuple[int | None, str | None]:
+    """只提取有限格式的诊断码，不把任意异常消息写入报告。"""
+    raw_status = getattr(error, "status_code", None)
+    status_code = raw_status if isinstance(raw_status, int) and 100 <= raw_status <= 599 else None
+    raw_provider_code = getattr(error, "provider_code", None)
+    provider_code = (
+        raw_provider_code
+        if isinstance(raw_provider_code, str)
+        and raw_provider_code.isascii()
+        and raw_provider_code.isdigit()
+        and len(raw_provider_code) <= 8
+        else None
+    )
+    return status_code, provider_code

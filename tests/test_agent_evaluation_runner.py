@@ -101,6 +101,26 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(summary.results[0].error_type, "TimeoutError")
         self.assertIsNone(summary.results[0].actual_answer)
 
+    def test_safe_provider_error_codes_are_kept_without_error_message(self):
+        case = AgentEvaluationCase(
+            case_id="provider-error",
+            question="测试上游错误",
+            expected_tools=["query_ticket"],
+        )
+
+        class SafeProviderError(Exception):
+            status_code = 429
+            provider_code = "1305"
+
+        def failing_runner(case_id: str, question: str) -> AgentGraphResponse:
+            raise SafeProviderError("这段原始错误消息不能进入评测报告")
+
+        result = run_evaluation_cases([case], failing_runner).results[0]
+
+        self.assertEqual(result.error_status_code, 429)
+        self.assertEqual(result.provider_error_code, "1305")
+        self.assertNotIn("原始错误消息", result.model_dump_json())
+
     def test_selected_cases_keep_requested_order(self):
         cases = load_evaluation_cases(CASES_FILE)
 

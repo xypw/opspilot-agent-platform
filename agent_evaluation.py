@@ -35,6 +35,8 @@ class AgentEvaluationResult(BaseModel):
     simulated_model_requests: int = Field(default=0, ge=0)
     # 批量运行时只保存异常类型，不保存可能含有业务数据或密钥的原始异常消息。
     error_type: str | None = None
+    error_status_code: int | None = Field(default=None, ge=100, le=599)
+    provider_error_code: str | None = Field(default=None, pattern=r"^[0-9]{1,8}$")
 
 
 class AgentEvaluationSummary(BaseModel):
