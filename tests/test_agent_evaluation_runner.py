@@ -97,6 +97,11 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
 
         self.assertEqual(executed_ids, ["broken", "healthy"])
         self.assertEqual(summary.successful_cases, 1)
+        self.assertEqual(summary.failed_cases, 0)
+        self.assertEqual(summary.errored_cases, 1)
+        self.assertEqual(summary.task_success_rate, 0.5)
+        self.assertEqual(summary.evaluation_completion_rate, 0.5)
+        self.assertEqual(summary.scored_success_rate, 1.0)
         self.assertEqual(summary.failure_counts, {"runner_error": 1})
         self.assertEqual(summary.results[0].error_type, "TimeoutError")
         self.assertIsNone(summary.results[0].actual_answer)
@@ -159,6 +164,9 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(summary.total_cases, 5)
         self.assertEqual(summary.successful_cases, 5)
         self.assertEqual(summary.failed_cases, 0)
+        self.assertEqual(summary.errored_cases, 0)
+        self.assertEqual(summary.evaluation_completion_rate, 1.0)
+        self.assertEqual(summary.scored_success_rate, 1.0)
         self.assertEqual(summary.failure_counts, {})
 
     @patch("agent_evaluation_runner.start_agent_graph")

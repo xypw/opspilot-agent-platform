@@ -46,8 +46,16 @@ class AgentEvaluationSummary(BaseModel):
 
     total_cases: int = Field(ge=0)
     successful_cases: int = Field(ge=0)
+    # failed 表示拿到了完整 Agent 响应，但状态、轨迹、事实或引用未满足标准。
     failed_cases: int = Field(ge=0)
+    # errored 表示模型、网络或程序异常，根本没有可评分的完整 Agent 响应。
+    errored_cases: int = Field(default=0, ge=0)
+    # 端到端成功率以全部用例为分母，基础设施错误同样降低该指标。
     task_success_rate: float = Field(ge=0.0, le=1.0)
+    # 完成率用于观察有多少用例真正得到可评分响应。
+    evaluation_completion_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    # 已评分成功率排除运行错误，单独衡量 Agent 响应质量。
+    scored_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     failure_counts: dict[str, int] = Field(default_factory=dict)
     results: list[AgentEvaluationResult] = Field(default_factory=list)
 
@@ -143,8 +151,12 @@ def build_evaluation_summary(
     # Python 中 True 可以按 1 参与求和，False 可以按 0 参与求和。
     successful_cases = sum(result.success for result in results)
 
-    # 每条任务只能成功或失败，因此失败数可以用总数减成功数得到。
-    failed_cases = total_cases - successful_cases
+    # 运行错误没有完整响应，不能伪装成 Agent 状态或回答不达标。
+    errored_cases = sum(result.error_type is not None for result in results)
+
+    # 只有拿到响应但没有通过标准的用例，才属于可评分失败。
+    failed_cases = total_cases - successful_cases - errored_cases
+    scored_cases = successful_cases + failed_cases
 
     # 一个失败任务可能贡献多个失败原因，所以需要两层循环分别计数。
     failure_counts: dict[str, int] = {}
@@ -159,12 +171,29 @@ def build_evaluation_summary(
         else 0.0
     )
 
+    # 完成率下降通常提示模型、网络或程序可靠性问题。
+    evaluation_completion_rate = (
+        scored_cases / total_cases
+        if total_cases > 0
+        else 0.0
+    )
+
+    # 没有任何可评分响应时约定为 0.0，避免除以零和虚假的满分。
+    scored_success_rate = (
+        successful_cases / scored_cases
+        if scored_cases > 0
+        else 0.0
+    )
+
     # 同时保留汇总指标和逐条明细，便于定位具体失败用例。
     return AgentEvaluationSummary(
         total_cases=total_cases,
         successful_cases=successful_cases,
         failed_cases=failed_cases,
+        errored_cases=errored_cases,
         task_success_rate=task_success_rate,
+        evaluation_completion_rate=evaluation_completion_rate,
+        scored_success_rate=scored_success_rate,
         failure_counts=failure_counts,
         results=results,
     )

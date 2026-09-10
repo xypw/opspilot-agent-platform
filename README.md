@@ -158,7 +158,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe .\scripts\run_agent_evaluation.py --mode mock --runtime isolated
 ```
 
-报告包含任务总数、成功数、失败数、任务成功率、失败原因分布和逐条结果。执行器只把
+报告包含任务总数、成功数、可评分失败数、运行错误数、三种比率、失败原因分布和逐条结果。执行器只把
 `case_id` 与 `question` 交给 Agent，不把预期工具、必要文字或引用要求传入被测系统。
 每条用例使用独立 `thread_id`；一条运行异常会记录为 `runner_error`，但不会阻止后续用例。
 逐条结果还记录实际状态、实际工具轨迹、回答、耗时，以及真实/模拟模型请求次数。
@@ -183,6 +183,11 @@ HTTP 状态码和数字业务码的安全诊断字段后，第二次运行正确
 回答包含“三个工作日”并由程序追加《售后与退款制度》第 2 页引用，耗时约 77 秒。当前
 `model_requests=2` 表示两个成功返回的模型轮次，并不包含网关内部的 HTTP 重试次数；完整
 请求尝试数仍是后续可观测性待办。
+
+指标口径：`task_success_rate` 以全部用例为分母，运行错误也会降低端到端成功率；
+`evaluation_completion_rate` 表示成功拿到可评分响应的比例；`scored_success_rate` 只在已得到
+完整响应的用例中衡量 Agent 质量。三者必须一起报告，不能用排除 429/超时后的分数掩盖系统
+可靠性问题。
 
 ## Tool Calling：先观察模型选择，不执行工具
 

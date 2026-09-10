@@ -125,7 +125,10 @@ class AgentEvaluationTests(unittest.TestCase):
         self.assertEqual(summary.total_cases, 3)
         self.assertEqual(summary.successful_cases, 1)
         self.assertEqual(summary.failed_cases, 2)
+        self.assertEqual(summary.errored_cases, 0)
         self.assertAlmostEqual(summary.task_success_rate, 1 / 3)
+        self.assertEqual(summary.evaluation_completion_rate, 1.0)
+        self.assertAlmostEqual(summary.scored_success_rate, 1 / 3)
         self.assertEqual(
             summary.failure_counts,
             {
@@ -141,7 +144,10 @@ class AgentEvaluationTests(unittest.TestCase):
         self.assertEqual(summary.total_cases, 0)
         self.assertEqual(summary.successful_cases, 0)
         self.assertEqual(summary.failed_cases, 0)
+        self.assertEqual(summary.errored_cases, 0)
         self.assertEqual(summary.task_success_rate, 0.0)
+        self.assertEqual(summary.evaluation_completion_rate, 0.0)
+        self.assertEqual(summary.scored_success_rate, 0.0)
         self.assertEqual(summary.failure_counts, {})
         self.assertEqual(summary.results, [])
 
