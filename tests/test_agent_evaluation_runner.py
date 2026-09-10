@@ -1,0 +1,134 @@
+"""Agent 批量评测执行器测试：加载、隔离、异常和 LangGraph 适配。"""
+
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+from unittest.mock import patch
+
+from agent_evaluation import AgentEvaluationCase
+from agent_evaluation_runner import (
+    build_langgraph_runner,
+    load_evaluation_cases,
+    run_evaluation_cases,
+)
+from agent_evaluation_runtime import build_isolated_evaluation_graph
+from agent_graph import AgentGraphResponse
+
+
+CASES_FILE = Path(__file__).parents[1] / "evaluation_data" / "agent_task_cases.json"
+
+
+def build_response(case_id: str, *, tools: list[str], answer: str) -> AgentGraphResponse:
+    """构造一个不依赖模型、HTTP 或数据库的公开 Agent 响应。"""
+    return AgentGraphResponse(
+        thread_id=f"eval-{case_id}",
+        mode="mock",
+        status="COMPLETED",
+        answer=answer,
+        tool_name=tools[-1],
+        tool_result=None,
+        tool_steps=len(tools),
+        tool_trace=[
+            {"step": index, "tool_name": tool_name, "result": {}}
+            for index, tool_name in enumerate(tools, start=1)
+        ],
+        model_requests=0,
+        simulated_model_requests=len(tools) + 1,
+    )
+
+
+class AgentEvaluationRunnerTests(unittest.TestCase):
+    def test_loads_the_fixed_json_cases(self):
+        cases = load_evaluation_cases(CASES_FILE)
+
+        self.assertEqual(len(cases), 5)
+        self.assertEqual(cases[0].case_id, "ticket-status-lookup")
+
+    def test_duplicate_case_ids_are_rejected_before_execution(self):
+        duplicated = [{
+            "case_id": "same-id",
+            "question": "查询工单 T-1003",
+            "expected_tools": ["query_ticket"],
+        }] * 2
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "cases.json"
+            path.write_text(json.dumps(duplicated), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "case_id 不能重复"):
+                load_evaluation_cases(path)
+
+    def test_runner_receives_only_case_id_and_question(self):
+        case = AgentEvaluationCase(
+            case_id="ticket-case",
+            question="查询工单 T-1003",
+            expected_tools=["query_ticket"],
+            answer_must_contain=["T-1003"],
+        )
+        received_arguments: list[tuple[str, str]] = []
+
+        def fake_runner(case_id: str, question: str) -> AgentGraphResponse:
+            received_arguments.append((case_id, question))
+            return build_response(case_id, tools=["query_ticket"], answer="工单 T-1003")
+
+        summary = run_evaluation_cases([case], fake_runner)
+
+        self.assertEqual(received_arguments, [("ticket-case", "查询工单 T-1003")])
+        self.assertEqual(summary.task_success_rate, 1.0)
+
+    def test_one_runner_error_does_not_stop_later_cases(self):
+        cases = [
+            AgentEvaluationCase(case_id="broken", question="第一个问题", expected_tools=["query_ticket"]),
+            AgentEvaluationCase(case_id="healthy", question="第二个问题", expected_tools=["query_ticket"]),
+        ]
+        executed_ids: list[str] = []
+
+        def flaky_runner(case_id: str, question: str) -> AgentGraphResponse:
+            executed_ids.append(case_id)
+            if case_id == "broken":
+                raise TimeoutError("测试异常消息不应进入报告")
+            return build_response(case_id, tools=["query_ticket"], answer="查询完成")
+
+        summary = run_evaluation_cases(cases, flaky_runner)
+
+        self.assertEqual(executed_ids, ["broken", "healthy"])
+        self.assertEqual(summary.successful_cases, 1)
+        self.assertEqual(summary.failure_counts, {"runner_error": 1})
+        self.assertEqual(summary.results[0].error_type, "TimeoutError")
+
+    def test_all_fixed_cases_run_against_the_isolated_mock_graph(self):
+        # 这不是伪造响应：五条问题会真实经过 LangGraph 节点、工具和中断路由。
+        cases = load_evaluation_cases(CASES_FILE)
+        graph = build_isolated_evaluation_graph()
+        runner = build_langgraph_runner(graph, mode="mock")
+
+        summary = run_evaluation_cases(cases, runner)
+
+        self.assertEqual(summary.total_cases, 5)
+        self.assertEqual(summary.successful_cases, 5)
+        self.assertEqual(summary.failed_cases, 0)
+        self.assertEqual(summary.failure_counts, {})
+
+    @patch("agent_evaluation_runner.start_agent_graph")
+    def test_langgraph_adapter_uses_isolated_thread_and_selected_mode(self, mocked_start):
+        expected = build_response("live-case", tools=["query_ticket"], answer="查询完成")
+        mocked_start.return_value = expected
+        graph = object()
+        runner = build_langgraph_runner(
+            graph,
+            mode="live",
+            thread_id_factory=lambda case_id: f"fixed-{case_id}",
+        )
+
+        actual = runner("live-case", "查询工单 T-1003")
+
+        self.assertIs(actual, expected)
+        called_graph, request = mocked_start.call_args.args
+        self.assertIs(called_graph, graph)
+        self.assertEqual(request.thread_id, "fixed-live-case")
+        self.assertEqual(request.message, "查询工单 T-1003")
+        self.assertEqual(request.mode, "live")
+
+
+if __name__ == "__main__":
+    unittest.main()

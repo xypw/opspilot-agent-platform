@@ -6,6 +6,7 @@
 
 import json
 import re
+from collections.abc import Callable
 from typing import Literal, Protocol, TypedDict
 
 import httpx
@@ -32,6 +33,7 @@ from return_draft_client import (
 
 
 AgentMode = Literal["mock", "live"]
+AgentToolExecutor = Callable[[str, str], dict | list[dict] | None]
 MAX_TOOL_STEPS = 3
 AgentGraphStatus = Literal[
     "RUNNING",
@@ -306,6 +308,7 @@ def build_agent_graph(
     model_gateway: AgentModelGateway,
     checkpointer=None,
     draft_gateway=None,
+    tool_runner: AgentToolExecutor = execute_tool,
 ):
     """构建一个单 Agent 图；节点由 Python 函数构成，边定义下一步。"""
 
@@ -357,7 +360,8 @@ def build_agent_graph(
         return "read_tool"
 
     def read_tool_node(state: AgentGraphState) -> AgentGraphState:
-        result = execute_tool(state["tool_name"], state["arguments_json"])
+        # 工具执行函数可以按运行环境注入，离线评测无需修改模块级全局变量。
+        result = tool_runner(state["tool_name"], state["arguments_json"])
         trace = state.get("tool_trace", []) + [{
             "step": state["tool_steps"],
             "tool_name": state["tool_name"],

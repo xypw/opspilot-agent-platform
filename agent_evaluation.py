@@ -26,6 +26,8 @@ class AgentEvaluationResult(BaseModel):
     case_id: str = Field(min_length=1)
     success: bool
     failure_reasons: list[str] = Field(default_factory=list)
+    # 批量运行时只保存异常类型，不保存可能含有业务数据或密钥的原始异常消息。
+    error_type: str | None = None
 
 
 class AgentEvaluationSummary(BaseModel):
