@@ -158,6 +158,17 @@ python -m venv .venv
 .\.venv\Scripts\python.exe .\scripts\run_agent_evaluation.py --mode mock --runtime isolated
 ```
 
+使用 `--output` 可以把带版本、运行时间、模式和运行环境的报告保存为 UTF-8 JSON：
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\run_agent_evaluation.py `
+  --mode mock --runtime isolated `
+  --output .\output\evaluation\agent-evaluation-mock.json
+```
+
+报告只保存仓库内相对评测集路径，不暴露本机用户目录。Mock 报告用于验证流程与报告格式，
+不能作为真实模型任务成功率写入简历。
+
 报告包含任务总数、成功数、可评分失败数、运行错误数、三种比率、失败原因分布和逐条结果。执行器只把
 `case_id` 与 `question` 交给 Agent，不把预期工具、必要文字或引用要求传入被测系统。
 每条用例使用独立 `thread_id`；一条运行异常会记录为 `runner_error`，但不会阻止后续用例。

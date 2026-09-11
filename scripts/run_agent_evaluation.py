@@ -23,9 +23,18 @@ from agent_evaluation_runner import (  # noqa: E402
     run_evaluation_cases,
     select_evaluation_cases,
 )
+from evaluation_report import AgentEvaluationReport, save_evaluation_report  # noqa: E402
 
 
 DEFAULT_CASES_FILE = PROJECT_ROOT / "evaluation_data" / "agent_task_cases.json"
+
+
+def build_report_cases_file(cases_path: Path) -> str:
+    """报告不保存包含本机用户目录的绝对路径。"""
+    try:
+        return cases_path.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+    except ValueError:
+        return cases_path.name
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         choices=("isolated", "app"),
         default="isolated",
         help="isolated 使用固定本地数据；app 使用当前应用基础设施",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="可选的 JSON 报告保存路径；省略时只在终端打印",
     )
     return parser.parse_args()
 
@@ -79,9 +93,17 @@ def main() -> int:
 
     runner = build_langgraph_runner(graph, mode=args.mode)
     summary = run_evaluation_cases(cases, runner)
+    report = AgentEvaluationReport(
+        mode=args.mode,
+        runtime=args.runtime,
+        cases_file=build_report_cases_file(args.cases),
+        summary=summary,
+    )
+    if args.output is not None:
+        save_evaluation_report(report, args.output)
     print(summary.model_dump_json(indent=2))
     # 失败用例返回非零退出码，后续可直接接入 CI 质量门禁。
-    return 0 if summary.failed_cases == 0 else 1
+    return 0 if summary.failed_cases == 0 and summary.errored_cases == 0 else 1
 
 
 if __name__ == "__main__":
