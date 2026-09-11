@@ -2,15 +2,32 @@ package dev.opspilot.business.orders;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 
 /** 使用随机端口启动真实 HTTP 服务，不占用正在演示的 8081 端口。 */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(OrderApiTest.FixedClockConfig.class)
 class OrderApiTest {
+    @TestConfiguration
+    static class FixedClockConfig {
+        @Bean
+        @Primary
+        Clock fixedBusinessClock() {
+            return Clock.fixed(Instant.parse("2026-09-07T04:00:00Z"), ZoneId.of("Asia/Shanghai"));
+        }
+    }
+
     @Autowired
     private TestRestTemplate http;
 

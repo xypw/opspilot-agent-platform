@@ -26,9 +26,43 @@
   `tool_trace`，RAG 证据跨步骤累计并由程序生成引用。
 - 已实现：6 条固定 Agent 任务评测集、状态/工具顺序/必要事实/引用和退货副作用判定、失败原因聚合，
   以及可切换 `isolated`/`app` 运行环境的批量执行器。
-- 尚未完成：退货过期数据清理、统一可观测性、完整部署和真实模型任务评测。
+- 尚未完成：退货过期数据清理、统一可观测性、生产环境部署和完整真实模型任务评测。
 - 已完成本地练习：解析 JSON 参数，用 Pydantic 校验并规范化编号，再调用查询函数。
 - 当前真实闭环验证：接口曾返回 429 / 1305（模型访问量过大），仍需成功的真实请求验收。
+
+## Docker Compose 一键启动
+
+默认 Compose 同时启动 PostgreSQL/pgvector、Redis、Java Spring Boot 业务服务和
+Python FastAPI Agent 服务。先复制 `.env.example` 为 `.env` 并修改本地数据库密码，然后运行：
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+当前示例默认通过 `docker.m.daocloud.io` 拉取基础镜像，因为本机网络无法连接 Docker Hub；
+能直连 Docker Hub 的环境可设置 `IMAGE_REGISTRY=docker.io`，无需修改 Dockerfile。
+Java 镜像构建使用 `business-service/maven-settings.xml` 将 Maven Central 请求映射到阿里云
+公共镜像，只作用于容器构建，不修改宿主机 Maven 配置。
+
+四个服务都显示为 `healthy` 后访问：
+
+- FastAPI 文档：<http://127.0.0.1:8011/docs>
+- Java 订单接口：<http://127.0.0.1:8081/api/orders/O-2001>
+
+容器内通过 `postgres`、`redis`、`business-service` 这些服务名互相访问，不能使用
+`127.0.0.1`。默认镜像不会复制 `.env`，也不会注入模型 API Key；因此一键环境适合 mock、
+数据库、Redis 和 Java 跨服务联调。需要 live 模型时再通过部署环境单独注入密钥。
+为避免和本机 Redis 冲突，Compose 默认把 Redis 暴露到宿主机 `6380`；容器间仍访问 `6379`。
+
+停止服务但保留数据库数据：
+
+```powershell
+docker compose down
+```
+
+当前上传文档的向量仍保存在 Python 进程内存中；PostgreSQL 已启用 pgvector 并创建表和索引，
+但上传/检索主链路尚未切换到 pgvector，不能把当前阶段描述为“知识库已持久化”。
 
 ## 第 3 天：从一个工具扩展到两个工具（进行中）
 

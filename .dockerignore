@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.venv
+.env
+.env.*
+!.env.example
+__pycache__
+*.py[cod]
+*.log
+.models
+.maven-cache
+business-service
+output
+tests
+tmp

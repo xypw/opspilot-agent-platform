@@ -234,6 +234,30 @@
 - 当前 Docker Engine、Java 8081 和 Python 8011 均未运行，因此本轮没有完成真实 Java/PostgreSQL 联调，不能冒充集成验收通过。
 - 下一步：优先完成完整 Docker Compose，使 PostgreSQL、Redis、Java 和 Python 能一条命令启动，再运行 `app` 安全评测。
 
+### 2026-09-11 四服务 Docker Compose 与应用级评测
+
+- 新增 Python 与 Java 多阶段 Dockerfile、构建上下文排除规则，并把 PostgreSQL/pgvector、
+  Redis Stack、Java Spring Boot 和 Python FastAPI 连接成一条命令可启动的 Compose 环境。
+- Python 容器通过服务名访问 `postgres`、`redis`、`business-service`；Java 在容器内监听
+  `0.0.0.0`，但只由 Compose 映射需要的宿主机端口。
+- 本机 6379 已被 Windows Redis 占用，Compose 使用可配置的宿主机 6380，不终止其他进程；
+  容器内部仍使用标准 6379。
+- Docker Hub 鉴权连接超时后，验证并使用可配置的 DaoCloud 基础镜像代理；Maven Central 下载
+  出现 TLS 中断后，只为 Java 容器构建配置阿里云 Maven 公共镜像，没有修改宿主机全局设置。
+- 四个服务均为 `healthy`；FastAPI 工单查询读取 PostgreSQL，订单查询通过 HTTP 调用 Java；
+  Redis 已加载 RedisJSON 和 RediSearch，Flyway 数据库迁移版本为 V2。
+- 首次应用级评测为 4/6：固定演示订单日期随真实时间老化，使两条退货用例错误进入
+  `WAITING_REASON`。修复后演示订单通过注入的业务时钟始终表示“签收第 7 天”，测试使用固定
+  时钟保持结果可重复。
+- 修复后 `mock + app` 评测 6/6：Redis、PostgreSQL、Java、LangGraph 和副作用探针为真实实现，
+  只有外部模型为 mock；不得把该结果表述为真实大模型准确率。
+- 完整回归：Python 313 个测试通过、3 个跳过；Java 30 个测试通过、1 个 PostgreSQL 专用测试
+  按默认条件跳过；四个 Compose 服务继续保持健康。
+- 学生本节应能解释：宿主机 `localhost` 与容器服务名的区别、健康检查为何不同于进程启动、
+  以及依赖注入如何让时间相关业务规则可重复测试。
+- 下一步：把文档上传和检索主链路从 Python 内存向量库切换到 PostgreSQL/pgvector，并补对应
+  集成测试；当前只能说“已创建 pgvector 表和索引”，不能说“知识库已持久化”。
+
 ## 进度更新规则
 
 - 每完成一个可验证里程碑，记录：完成内容、学生是否能解释、测试命令和结果、下一步。

@@ -1,3 +1,5 @@
+name: opspilot
+
 services:
   postgres:
     # 固定 PostgreSQL 16 与 pgvector 版本；不使用 latest，避免课程环境无提示升级。
@@ -26,7 +28,7 @@ services:
     image: redis/redis-stack-server:latest
     container_name: opspilot-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6380}:6379"
     environment:
       # 不覆盖 Redis Stack 默认启动脚本；由脚本加载 RedisJSON 与 RediSearch。
       # AOF 让 Redis 重启后也能从磁盘恢复数据；教学版仍需注意备份与过期策略。
@@ -39,6 +41,61 @@ services:
       timeout: 3s
       retries: 10
 
+  business-service:
+    build:
+      context: ./business-service
+      args:
+        IMAGE_REGISTRY: ${IMAGE_REGISTRY:-docker.m.daocloud.io}
+    container_name: opspilot-business-service
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      RETURN_DRAFT_STORE_BACKEND: postgres
+      BUSINESS_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/api/orders/O-2001"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      args:
+        IMAGE_REGISTRY: ${IMAGE_REGISTRY:-docker.m.daocloud.io}
+    container_name: opspilot-api
+    ports:
+      - "8011:8011"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      TICKET_REPOSITORY_BACKEND: postgres
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ORDER_QUERY_BACKEND: java
+      ORDER_SERVICE_URL: http://business-service:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      business-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8011/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    volumes:
+      - opspilot_model_cache:/home/opspilot/.cache/fastembed
+
 volumes:
   opspilot_postgres_data:
   opspilot_redis_data:
+  opspilot_model_cache:
