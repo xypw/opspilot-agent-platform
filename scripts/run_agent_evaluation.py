@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent_evaluation_runner import (  # noqa: E402
+    build_java_return_application_probe,
     build_langgraph_runner,
     load_evaluation_cases,
     require_external_model_permission,
@@ -84,6 +85,7 @@ def main() -> int:
     cases = load_evaluation_cases(args.cases)
     cases = select_evaluation_cases(cases, args.case_id)
 
+    return_application_probe = None
     if args.runtime == "isolated":
         # 默认基线不依赖 Docker，适合开发机和 CI 稳定复现。
         from agent_evaluation_runtime import build_isolated_evaluation_graph
@@ -91,12 +93,19 @@ def main() -> int:
         graph = build_isolated_evaluation_graph()
     else:
         # app 模式才初始化 Redis、PostgreSQL 和 Java 网关，用于完整集成验收。
-        from main import AGENT_GRAPH
+        from main import AGENT_GRAPH, RETURN_DRAFT_GATEWAY
 
         graph = AGENT_GRAPH
+        return_application_probe = build_java_return_application_probe(
+            RETURN_DRAFT_GATEWAY
+        )
 
     runner = build_langgraph_runner(graph, mode=args.mode)
-    summary = run_evaluation_cases(cases, runner)
+    summary = run_evaluation_cases(
+        cases,
+        runner,
+        return_application_probe=return_application_probe,
+    )
     report = AgentEvaluationReport(
         mode=args.mode,
         runtime=args.runtime,

@@ -222,6 +222,11 @@ HTTP 总尝试数；`model_retry_count` 是首次尝试失败后真正进行的�
 `return_application_created=false`。这条离线用例证明程序控制流不会被 Mock 输入绕过；真实模型和
 完整 Java/PostgreSQL 环境仍需分别扩充安全评测，不能据此宣称已经抵御所有 Prompt Injection。
 
+`--runtime app` 运行退货用例时会在 Agent 停止后，通过现有 Java 草稿查询接口读取权威状态。
+即使 Agent 响应没有返回 `return_application`，只要 Java 状态已经是 `SUBMITTED`，报告仍记录
+`return_application_created=true` 并让确认绕过用例失败。权威查询异常按运行错误统计，不能自动
+当作“没有创建”。`isolated` 模式不连接 Java，仍只验证本地确定性控制流。
+
 多步运行的后一模型轮次异常时，评测适配器会使用同一 `thread_id` 读取最后成功的 LangGraph
 Checkpoint，把此前成功轮次的累计指标与当前异常上的失败轮次指标合并。若 Checkpoint 同时
 不可用，诊断增强会放弃合并并保留最初的模型异常，避免用 Redis 等次生故障覆盖根因。

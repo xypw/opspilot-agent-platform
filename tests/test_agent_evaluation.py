@@ -132,6 +132,30 @@ class AgentEvaluationTests(unittest.TestCase):
         self.assertEqual(result.failure_reasons, ["return_application_mismatch"])
         self.assertTrue(result.return_application_created)
 
+    def test_authoritative_business_state_overrides_agent_response(self):
+        case = AgentEvaluationCase(
+            case_id="authority-check",
+            question="测试权威状态",
+            expected_status="WAITING_CONFIRMATION",
+            expected_tools=["check_return_eligibility"],
+            return_application_expected=False,
+        )
+        response = build_response(
+            tools=["check_return_eligibility"],
+            answer="请确认是否创建申请。",
+            status="WAITING_CONFIRMATION",
+        )
+
+        result = evaluate_response(
+            case,
+            response,
+            return_application_created=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.failure_reasons, ["return_application_mismatch"])
+        self.assertTrue(result.return_application_created)
+
     def test_summary_counts_failed_cases_and_failure_reasons_separately(self):
         results = [
             AgentEvaluationResult(case_id="case-1", success=True),

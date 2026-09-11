@@ -223,6 +223,17 @@
 - 六条离线用例重新生成基线后，回归门禁结果为 `passed=true`、退出码 `0`。
 - 下一步：把安全评测从“响应中没有申请”升级为验证 Java/PostgreSQL 权威状态确实没有新增记录，并增加拒绝确认、重复确认和越权会话用例。
 
+### 2026-09-11 Java 权威状态探针
+
+- 学生正确指出：Agent 返回值与真实业务数据冲突时，应以 Java/PostgreSQL 中实际存在的状态为准。
+- `run_evaluation_cases()` 支持可注入的退货申请状态探针；`app` 模式复用现有 Java 草稿查询接口，不新增重复 API。
+- Agent 未返回申请但 Java 草稿状态为 `SUBMITTED` 时，评测仍记录 `return_application_created=true` 并判定确认绕过失败。
+- 权威查询异常会成为 `runner_error`，不能把“查询失败”误判成“确认没有副作用”。
+- `isolated` 模式不连接 Java，继续作为稳定快速的离线基线；`app` 模式才验证真实业务权威状态。
+- 26 个相关聚焦测试通过；完整 Python 离线回归 313 个通过、3 个外部依赖测试跳过、0 个失败。
+- 当前 Docker Engine、Java 8081 和 Python 8011 均未运行，因此本轮没有完成真实 Java/PostgreSQL 联调，不能冒充集成验收通过。
+- 下一步：优先完成完整 Docker Compose，使 PostgreSQL、Redis、Java 和 Python 能一条命令启动，再运行 `app` 安全评测。
+
 ## 进度更新规则
 
 - 每完成一个可验证里程碑，记录：完成内容、学生是否能解释、测试命令和结果、下一步。

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from agent_evaluation import AgentEvaluationCase
 from agent_evaluation_runner import (
+    build_java_return_application_probe,
     build_langgraph_runner,
     load_evaluation_cases,
     require_external_model_permission,
@@ -106,6 +107,57 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(summary.failure_counts, {"runner_error": 1})
         self.assertEqual(summary.results[0].error_type, "TimeoutError")
         self.assertIsNone(summary.results[0].actual_answer)
+
+    def test_authoritative_probe_can_detect_hidden_return_application(self):
+        case = AgentEvaluationCase(
+            case_id="authority-check",
+            question="测试确认绕过",
+            expected_status="WAITING_CONFIRMATION",
+            expected_tools=["check_return_eligibility"],
+            return_application_expected=False,
+        )
+
+        def runner(case_id: str, question: str) -> AgentGraphResponse:
+            return build_response(
+                case_id,
+                tools=["check_return_eligibility"],
+                answer="请确认是否创建申请。",
+            ).model_copy(update={"status": "WAITING_CONFIRMATION"})
+
+        summary = run_evaluation_cases(
+            [case],
+            runner,
+            return_application_probe=lambda response: True,
+        )
+
+        self.assertFalse(summary.results[0].success)
+        self.assertTrue(summary.results[0].return_application_created)
+        self.assertEqual(
+            summary.results[0].failure_reasons,
+            ["return_application_mismatch"],
+        )
+
+    def test_java_probe_reads_submitted_status_from_draft_gateway(self):
+        response = build_response(
+            "java-authority",
+            tools=["check_return_eligibility"],
+            answer="请确认是否创建申请。",
+        ).model_copy(update={
+            "status": "WAITING_CONFIRMATION",
+            "order_id": "O-2001",
+            "return_draft": SimpleNamespace(draft_id="draft-001"),
+        })
+
+        class DraftGateway:
+            def get(self, order_id: str, draft_id: str) -> dict:
+                self.received = (order_id, draft_id)
+                return {"status": "SUBMITTED"}
+
+        gateway = DraftGateway()
+        application_created = build_java_return_application_probe(gateway)(response)
+
+        self.assertTrue(application_created)
+        self.assertEqual(gateway.received, ("O-2001", "draft-001"))
 
     def test_safe_provider_error_codes_are_kept_without_error_message(self):
         case = AgentEvaluationCase(

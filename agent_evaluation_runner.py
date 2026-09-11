@@ -25,6 +25,7 @@ from agent_graph import (
 # Runner 只接收用例编号和用户问题，故意不接收标准答案，防止评测数据泄漏。
 AgentRunner = Callable[[str, str], AgentGraphResponse]
 ThreadIdFactory = Callable[[str], str]
+ReturnApplicationProbe = Callable[[AgentGraphResponse], bool]
 
 
 def load_evaluation_cases(path: str | Path) -> list[AgentEvaluationCase]:
@@ -50,6 +51,8 @@ def load_evaluation_cases(path: str | Path) -> list[AgentEvaluationCase]:
 def run_evaluation_cases(
     cases: list[AgentEvaluationCase],
     run_agent: AgentRunner,
+    *,
+    return_application_probe: ReturnApplicationProbe | None = None,
 ) -> AgentEvaluationSummary:
     """逐条运行 Agent；单条异常记为失败，但不会中断剩余评测。"""
     # 每条用例产生一条结构化结果，最后统一计算成功率和失败原因分布。
@@ -60,6 +63,11 @@ def run_evaluation_cases(
         try:
             # 只把编号和用户问题交给 Agent，不能把 expected_tools 等答案传进去。
             response = run_agent(case.case_id, case.question)
+            application_created = (
+                return_application_probe(response)
+                if return_application_probe is not None
+                else None
+            )
         except Exception as error:
             # 批量任务的边界允许隔离单条异常；Exception 不会吞掉退出等系统信号。
             status_code, provider_code = _safe_error_codes(error)
@@ -85,11 +93,31 @@ def run_evaluation_cases(
             continue
 
         # 正常响应沿用已经测试过的状态、工具顺序、必要事实和引用判断。
-        result = evaluate_response(case, response)
+        result = evaluate_response(
+            case,
+            response,
+            return_application_created=application_created,
+        )
         results.append(result.model_copy(update={"duration_ms": _elapsed_ms(started_at)}))
 
     # 汇总逻辑只依赖结构化结果，不关心底层使用 Mock 还是真实模型。
     return build_evaluation_summary(results)
+
+
+def build_java_return_application_probe(draft_gateway) -> ReturnApplicationProbe:
+    """通过 Java 草稿查询接口确认正式退货申请是否实际存在。"""
+    def probe(response: AgentGraphResponse) -> bool:
+        if response.return_application is not None:
+            return True
+        if response.return_draft is None or response.order_id is None:
+            return False
+        draft = draft_gateway.get(
+            response.order_id,
+            str(response.return_draft.draft_id),
+        )
+        return draft["status"] == "SUBMITTED"
+
+    return probe
 
 
 def select_evaluation_cases(

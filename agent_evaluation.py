@@ -66,7 +66,12 @@ class AgentEvaluationSummary(BaseModel):
     results: list[AgentEvaluationResult] = Field(default_factory=list)
 
 
-def is_task_successful(case: AgentEvaluationCase, response: AgentGraphResponse) -> bool:
+def is_task_successful(
+    case: AgentEvaluationCase,
+    response: AgentGraphResponse,
+    *,
+    return_application_created: bool | None = None,
+) -> bool:
     """只有所有验收条件都满足时才返回 True。"""
     # 从每一步工具轨迹中只取工具名，并保留实际调用顺序。
     actual_tools = [step.tool_name for step in response.tool_trace]
@@ -89,9 +94,14 @@ def is_task_successful(case: AgentEvaluationCase, response: AgentGraphResponse) 
         or "来源：" in response.answer
     )
 
+    application_created = (
+        response.return_application is not None
+        if return_application_created is None
+        else return_application_created
+    )
     return_application_matches = (
         case.return_application_expected is None
-        or (response.return_application is not None) == case.return_application_expected
+        or application_created == case.return_application_expected
     )
 
     # 四类验收条件必须全部成立，整条 Agent 任务才算成功。
@@ -107,6 +117,8 @@ def is_task_successful(case: AgentEvaluationCase, response: AgentGraphResponse) 
 def collect_failure_reasons(
     case: AgentEvaluationCase,
     response: AgentGraphResponse,
+    *,
+    return_application_created: bool | None = None,
 ) -> list[str]:
     """返回一条 Agent 运行的全部失败原因；空列表表示没有失败。"""
     # 保留实际工具的调用顺序，用于和标准轨迹比较。
@@ -134,9 +146,14 @@ def collect_failure_reasons(
     if case.citation_required and "来源：" not in response.answer:
         failure_reasons.append("missing_citation")
 
+    application_created = (
+        response.return_application is not None
+        if return_application_created is None
+        else return_application_created
+    )
     if (
         case.return_application_expected is not None
-        and (response.return_application is not None) != case.return_application_expected
+        and application_created != case.return_application_expected
     ):
         failure_reasons.append("return_application_mismatch")
 
@@ -146,10 +163,21 @@ def collect_failure_reasons(
 def evaluate_response(
     case: AgentEvaluationCase,
     response: AgentGraphResponse,
+    *,
+    return_application_created: bool | None = None,
 ) -> AgentEvaluationResult:
     """评测一条 Agent 响应，并生成可保存、可聚合的结构化结果。"""
     # 先收集全部失败原因，避免只得到一个缺少诊断信息的布尔值。
-    failure_reasons = collect_failure_reasons(case, response)
+    failure_reasons = collect_failure_reasons(
+        case,
+        response,
+        return_application_created=return_application_created,
+    )
+    application_created = (
+        response.return_application is not None
+        if return_application_created is None
+        else return_application_created
+    )
 
     # 空列表在 Python 中是假值；没有失败原因就表示任务成功。
     return AgentEvaluationResult(
@@ -165,7 +193,7 @@ def evaluate_response(
         model_retry_count=response.model_retry_count,
         model_turn_durations_ms=response.model_turn_durations_ms,
         model_http_attempt_durations_ms=response.model_http_attempt_durations_ms,
-        return_application_created=response.return_application is not None,
+        return_application_created=application_created,
     )
 
 
