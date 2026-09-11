@@ -2,7 +2,7 @@
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
@@ -63,7 +63,8 @@ def run_evaluation_cases(
         except Exception as error:
             # 批量任务的边界允许隔离单条异常；Exception 不会吞掉退出等系统信号。
             status_code, provider_code = _safe_error_codes(error)
-            http_attempts, retry_count, turn_durations, attempt_durations = (
+            (model_requests, simulated_requests, http_attempts, retry_count,
+             turn_durations, attempt_durations) = (
                 _safe_model_telemetry(error)
             )
             results.append(AgentEvaluationResult(
@@ -74,6 +75,8 @@ def run_evaluation_cases(
                 error_type=type(error).__name__,
                 error_status_code=status_code,
                 provider_error_code=provider_code,
+                model_requests=model_requests,
+                simulated_model_requests=simulated_requests,
                 model_http_attempts=http_attempts,
                 model_retry_count=retry_count,
                 model_turn_durations_ms=turn_durations,
@@ -127,13 +130,20 @@ def build_langgraph_runner(
 
     def run_agent(case_id: str, question: str) -> AgentGraphResponse:
         # 每条用例使用独立 thread_id，防止 Checkpoint 和历史消息相互污染。
+        thread_id = make_thread_id(case_id)
         request = AgentGraphStartRequest(
-            thread_id=make_thread_id(case_id),
+            thread_id=thread_id,
             message=question,
             mode=mode,
         )
-        # 这里只负责启动工作流；是否成功由外层评测器依据标准答案判断。
-        return start_agent_graph(graph, request)
+        try:
+            # 这里只负责启动工作流；是否成功由外层评测器依据标准答案判断。
+            return start_agent_graph(graph, request)
+        except Exception as error:
+            # 失败节点不会提交更新，因此合并“最后成功 Checkpoint + 本轮异常指标”。
+            _merge_checkpoint_telemetry(graph, thread_id, error)
+            # 使用 bare raise 保留原异常类型和原始 Traceback。
+            raise
 
     return run_agent
 
@@ -168,17 +178,81 @@ def _safe_error_codes(error: Exception) -> tuple[int | None, str | None]:
     return status_code, provider_code
 
 
-def _safe_model_telemetry(error: Exception) -> tuple[int, int, list[float], list[float]]:
+def _safe_model_telemetry(
+    error: Exception,
+) -> tuple[int, int, int, int, list[float], list[float]]:
     """从网关异常提取有限数值指标，拒绝任意对象和负数。"""
-    raw_attempts = getattr(error, "model_http_attempts", 0)
-    http_attempts = raw_attempts if isinstance(raw_attempts, int) and raw_attempts >= 0 else 0
-    raw_retries = getattr(error, "model_retry_count", 0)
-    retry_count = raw_retries if isinstance(raw_retries, int) and raw_retries >= 0 else 0
+    model_requests = _safe_nonnegative_int(getattr(error, "model_requests", 0))
+    simulated_requests = _safe_nonnegative_int(
+        getattr(error, "simulated_model_requests", 0)
+    )
+    http_attempts = _safe_nonnegative_int(getattr(error, "model_http_attempts", 0))
+    retry_count = _safe_nonnegative_int(getattr(error, "model_retry_count", 0))
     turn_durations = _safe_duration_list(getattr(error, "model_turn_durations_ms", []))
     attempt_durations = _safe_duration_list(
         getattr(error, "model_http_attempt_durations_ms", [])
     )
-    return http_attempts, retry_count, turn_durations, attempt_durations
+    return (
+        model_requests,
+        simulated_requests,
+        http_attempts,
+        retry_count,
+        turn_durations,
+        attempt_durations,
+    )
+
+
+def _merge_checkpoint_telemetry(graph, thread_id: str, error: Exception) -> None:
+    """把已提交节点的指标合并到失败轮次异常；失败时保留原始异常。"""
+    try:
+        # 使用与 start_agent_graph 相同的配置读取这一条评测会话。
+        config = {"configurable": {"thread_id": thread_id}}
+        snapshot = graph.get_state(config)
+        values = getattr(snapshot, "values", None)
+        if not isinstance(values, Mapping):
+            return
+
+        # 异常上的数值属于当前失败轮次，Checkpoint 属于此前成功轮次。
+        (failed_model_requests, failed_simulated_requests, failed_attempts,
+         failed_retries, failed_turn_durations, failed_attempt_durations) = (
+            _safe_model_telemetry(error)
+        )
+        error.model_requests = (
+            _safe_nonnegative_int(values.get("model_requests", 0))
+            + failed_model_requests
+        )
+        error.simulated_model_requests = (
+            _safe_nonnegative_int(values.get("simulated_model_requests", 0))
+            + failed_simulated_requests
+        )
+        error.model_http_attempts = (
+            _safe_nonnegative_int(values.get("model_http_attempts", 0))
+            + failed_attempts
+        )
+        error.model_retry_count = (
+            _safe_nonnegative_int(values.get("model_retry_count", 0))
+            + failed_retries
+        )
+        checkpoint_turn_durations = _safe_duration_list(
+            values.get("model_turn_durations_ms", [])
+        )
+        checkpoint_attempt_durations = _safe_duration_list(
+            values.get("model_http_attempt_durations_ms", [])
+        )
+        error.model_turn_durations_ms = _safe_duration_list(
+            checkpoint_turn_durations + failed_turn_durations
+        )
+        error.model_http_attempt_durations_ms = _safe_duration_list(
+            checkpoint_attempt_durations + failed_attempt_durations
+        )
+    except Exception:
+        # Checkpoint 可能与模型同时故障；诊断增强失败不能覆盖最初的模型异常。
+        return
+
+
+def _safe_nonnegative_int(value: object) -> int:
+    """只接受真正的非负整数；bool 虽是 int 子类但不能作为计数。"""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
 def _safe_duration_list(value: object) -> list[float]:

@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -133,6 +134,73 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         self.assertEqual(result.model_turn_durations_ms, [46000.0])
         self.assertEqual(len(result.model_http_attempt_durations_ms), 3)
         self.assertNotIn("原始错误消息", result.model_dump_json())
+
+    @patch("agent_evaluation_runner.start_agent_graph")
+    def test_failed_turn_merges_previous_checkpoint_telemetry(self, mocked_start):
+        case = AgentEvaluationCase(
+            case_id="multi-step-error",
+            question="先查询订单，再查询退款政策",
+            expected_tools=["query_order", "search_knowledge_base"],
+        )
+
+        class FinalTurnError(Exception):
+            model_http_attempts = 3
+            model_retry_count = 2
+            model_turn_durations_ms = [46000.0]
+            model_http_attempt_durations_ms = [15000.0, 15000.0, 15400.0]
+
+        class CheckpointGraph:
+            def get_state(self, config):
+                self.received_config = config
+                return SimpleNamespace(values={
+                    "model_requests": 1,
+                    "simulated_model_requests": 0,
+                    "model_http_attempts": 1,
+                    "model_retry_count": 0,
+                    "model_turn_durations_ms": [18000.0],
+                    "model_http_attempt_durations_ms": [18000.0],
+                })
+
+        graph = CheckpointGraph()
+        mocked_start.side_effect = FinalTurnError("第二轮模型失败")
+        runner = build_langgraph_runner(
+            graph,
+            mode="live",
+            thread_id_factory=lambda case_id: f"fixed-{case_id}",
+        )
+
+        result = run_evaluation_cases([case], runner).results[0]
+
+        self.assertEqual(
+            graph.received_config,
+            {"configurable": {"thread_id": "fixed-multi-step-error"}},
+        )
+        self.assertEqual(result.model_requests, 1)
+        self.assertEqual(result.model_http_attempts, 4)
+        self.assertEqual(result.model_retry_count, 2)
+        self.assertEqual(result.model_turn_durations_ms, [18000.0, 46000.0])
+        self.assertEqual(len(result.model_http_attempt_durations_ms), 4)
+        self.assertEqual(result.error_type, "FinalTurnError")
+
+    @patch("agent_evaluation_runner.start_agent_graph")
+    def test_checkpoint_read_failure_preserves_original_error(self, mocked_start):
+        case = AgentEvaluationCase(
+            case_id="checkpoint-error",
+            question="测试双重故障",
+            expected_tools=["query_ticket"],
+        )
+
+        class BrokenCheckpointGraph:
+            def get_state(self, config):
+                raise ConnectionError("Checkpoint 不可用")
+
+        mocked_start.side_effect = TimeoutError("原始模型超时")
+        runner = build_langgraph_runner(BrokenCheckpointGraph(), mode="live")
+
+        result = run_evaluation_cases([case], runner).results[0]
+
+        self.assertEqual(result.error_type, "TimeoutError")
+        self.assertEqual(result.failure_reasons, ["runner_error"])
 
     def test_selected_cases_keep_requested_order(self):
         cases = load_evaluation_cases(CASES_FILE)
