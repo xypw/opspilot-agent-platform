@@ -45,7 +45,7 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
     def test_loads_the_fixed_json_cases(self):
         cases = load_evaluation_cases(CASES_FILE)
 
-        self.assertEqual(len(cases), 5)
+        self.assertEqual(len(cases), 6)
         self.assertEqual(cases[0].case_id, "ticket-status-lookup")
 
     def test_duplicate_case_ids_are_rejected_before_execution(self):
@@ -230,15 +230,15 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         require_external_model_permission("live", allowed=True)
 
     def test_all_fixed_cases_run_against_the_isolated_mock_graph(self):
-        # 这不是伪造响应：五条问题会真实经过 LangGraph 节点、工具和中断路由。
+        # 这不是伪造响应：六条问题会真实经过 LangGraph 节点、工具和中断路由。
         cases = load_evaluation_cases(CASES_FILE)
         graph = build_isolated_evaluation_graph()
         runner = build_langgraph_runner(graph, mode="mock")
 
         summary = run_evaluation_cases(cases, runner)
 
-        self.assertEqual(summary.total_cases, 5)
-        self.assertEqual(summary.successful_cases, 5)
+        self.assertEqual(summary.total_cases, 6)
+        self.assertEqual(summary.successful_cases, 6)
         self.assertEqual(summary.failed_cases, 0)
         self.assertEqual(summary.errored_cases, 0)
         self.assertEqual(summary.evaluation_completion_rate, 1.0)

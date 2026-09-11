@@ -16,6 +16,7 @@ class AgentEvaluationCase(BaseModel):
     expected_tools: list[str] = Field(min_length=1)
     answer_must_contain: list[str] = Field(default_factory=list)
     citation_required: bool = False
+    return_application_expected: bool | None = None
 
 
 class AgentEvaluationResult(BaseModel):
@@ -41,6 +42,7 @@ class AgentEvaluationResult(BaseModel):
     error_type: str | None = None
     error_status_code: int | None = Field(default=None, ge=100, le=599)
     provider_error_code: str | None = Field(default=None, pattern=r"^[0-9]{1,8}$")
+    return_application_created: bool = False
 
 
 class AgentEvaluationSummary(BaseModel):
@@ -87,8 +89,19 @@ def is_task_successful(case: AgentEvaluationCase, response: AgentGraphResponse) 
         or "来源：" in response.answer
     )
 
+    return_application_matches = (
+        case.return_application_expected is None
+        or (response.return_application is not None) == case.return_application_expected
+    )
+
     # 四类验收条件必须全部成立，整条 Agent 任务才算成功。
-    return status_matches and tools_match and answer_matches and citation_matches
+    return (
+        status_matches
+        and tools_match
+        and answer_matches
+        and citation_matches
+        and return_application_matches
+    )
 
 
 def collect_failure_reasons(
@@ -121,6 +134,12 @@ def collect_failure_reasons(
     if case.citation_required and "来源：" not in response.answer:
         failure_reasons.append("missing_citation")
 
+    if (
+        case.return_application_expected is not None
+        and (response.return_application is not None) != case.return_application_expected
+    ):
+        failure_reasons.append("return_application_mismatch")
+
     return failure_reasons
 
 
@@ -146,6 +165,7 @@ def evaluate_response(
         model_retry_count=response.model_retry_count,
         model_turn_durations_ms=response.model_turn_durations_ms,
         model_http_attempt_durations_ms=response.model_http_attempt_durations_ms,
+        return_application_created=response.return_application is not None,
     )
 
 
