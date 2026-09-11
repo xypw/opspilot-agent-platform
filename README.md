@@ -169,6 +169,18 @@ python -m venv .venv
 报告只保存仓库内相对评测集路径，不暴露本机用户目录。Mock 报告用于验证流程与报告格式，
 不能作为真实模型任务成功率写入简历。
 
+比较同一模式、运行环境、评测集指纹和用例集合的两份报告：
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\check_agent_regression.py `
+  --baseline .\output\evaluation\agent-evaluation-mock.json `
+  --current .\output\evaluation\current-agent-evaluation.json
+```
+
+退出码 `0` 表示没有原本成功的用例退化，`1` 表示发现逐用例回归，`2` 表示报告缺失、
+格式错误或实验条件不一致。`.github/workflows/agent-evaluation.yml` 会在提交和 Pull Request 时
+自动执行离线测试、生成当前报告并运行该门禁。
+
 报告包含任务总数、成功数、可评分失败数、运行错误数、三种比率、失败原因分布和逐条结果。执行器只把
 `case_id` 与 `question` 交给 Agent，不把预期工具、必要文字或引用要求传入被测系统。
 每条用例使用独立 `thread_id`；一条运行异常会记录为 `runner_error`，但不会阻止后续用例。

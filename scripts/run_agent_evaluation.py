@@ -23,7 +23,11 @@ from agent_evaluation_runner import (  # noqa: E402
     run_evaluation_cases,
     select_evaluation_cases,
 )
-from evaluation_report import AgentEvaluationReport, save_evaluation_report  # noqa: E402
+from evaluation_report import (  # noqa: E402
+    AgentEvaluationReport,
+    calculate_cases_sha256,
+    save_evaluation_report,
+)
 
 
 DEFAULT_CASES_FILE = PROJECT_ROOT / "evaluation_data" / "agent_task_cases.json"
@@ -97,6 +101,7 @@ def main() -> int:
         mode=args.mode,
         runtime=args.runtime,
         cases_file=build_report_cases_file(args.cases),
+        cases_sha256=calculate_cases_sha256(args.cases),
         summary=summary,
     )
     if args.output is not None:

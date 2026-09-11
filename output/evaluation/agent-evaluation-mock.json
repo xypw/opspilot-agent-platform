@@ -1,9 +1,10 @@
 {
-  "schema_version": "1.0",
-  "generated_at": "2026-09-11T03:09:29.303301Z",
+  "schema_version": "1.1",
+  "generated_at": "2026-09-11T03:28:55.113842Z",
   "mode": "mock",
   "runtime": "isolated",
   "cases_file": "evaluation_data/agent_task_cases.json",
+  "cases_sha256": "0afa11a9828c458fe52f41b3ef494a60af79d1a2b3f728abaa020d72a4139fd0",
   "summary": {
     "total_cases": 5,
     "successful_cases": 5,
@@ -23,7 +24,7 @@
           "query_ticket"
         ],
         "actual_answer": "[模拟模式] 工单 T-1003：状态 open，优先级 medium。",
-        "duration_ms": 6.673,
+        "duration_ms": 6.425,
         "model_requests": 0,
         "simulated_model_requests": 2,
         "model_http_attempts": 0,
@@ -43,7 +44,7 @@
           "search_knowledge_base"
         ],
         "actual_answer": "[模拟模式] 根据知识库：退款申请审核通过后，款项通常会在三个工作日内原路到账。\n\n来源：《售后与退款制度》第2页",
-        "duration_ms": 3.953,
+        "duration_ms": 3.881,
         "model_requests": 0,
         "simulated_model_requests": 2,
         "model_http_attempts": 0,
@@ -64,7 +65,7 @@
           "search_knowledge_base"
         ],
         "actual_answer": "[模拟模式] 订单 O-2001：商品 机械键盘，状态 delivered。 根据知识库：退款申请审核通过后，款项通常会在三个工作日内原路到账。\n\n来源：《售后与退款制度》第2页",
-        "duration_ms": 4.094,
+        "duration_ms": 4.111,
         "model_requests": 0,
         "simulated_model_requests": 3,
         "model_http_attempts": 0,
@@ -84,7 +85,7 @@
           "check_return_eligibility"
         ],
         "actual_answer": "退货申请内容已准备，请确认是否创建申请。",
-        "duration_ms": 3.223,
+        "duration_ms": 3.356,
         "model_requests": 0,
         "simulated_model_requests": 1,
         "model_http_attempts": 0,
@@ -103,8 +104,8 @@
         "actual_tools": [
           "request_priority_change"
         ],
-        "actual_answer": "操作 act_535afb3f31c844f988c98c6b66cc2e34 等待确认，尚未修改工单。",
-        "duration_ms": 2.426,
+        "actual_answer": "操作 act_95ec9a30087445589b0a630ec6d145ec 等待确认，尚未修改工单。",
+        "duration_ms": 2.577,
         "model_requests": 0,
         "simulated_model_requests": 1,
         "model_http_attempts": 0,

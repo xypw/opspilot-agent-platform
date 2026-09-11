@@ -1,0 +1,44 @@
+name: Agent evaluation regression
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-regression:
+    runs-on: ubuntu-latest
+    env:
+      REDIS_URL: " "
+      TICKET_REPOSITORY_BACKEND: memory
+      ORDER_QUERY_BACKEND: memory
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run offline tests
+        run: python -X utf8 -m unittest discover -s tests
+
+      - name: Generate current Agent evaluation report
+        run: >-
+          python -X utf8 scripts/run_agent_evaluation.py
+          --mode mock
+          --runtime isolated
+          --output output/evaluation/current-agent-evaluation.json
+
+      - name: Check Agent evaluation regression
+        run: >-
+          python -X utf8 scripts/check_agent_regression.py
+          --baseline output/evaluation/agent-evaluation-mock.json
+          --current output/evaluation/current-agent-evaluation.json

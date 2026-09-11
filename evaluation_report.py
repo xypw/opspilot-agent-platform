@@ -1,6 +1,7 @@
 """把 Agent 评测结果包装并保存成可复现的 JSON 报告。"""
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Literal
 
@@ -18,13 +19,14 @@ class AgentEvaluationReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.1"] = "1.1"
     generated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
     mode: AgentMode
     runtime: EvaluationRuntime
     cases_file: str = Field(min_length=1)
+    cases_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     summary: AgentEvaluationSummary
 
 
@@ -37,3 +39,15 @@ def save_evaluation_report(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     return path
+
+
+def calculate_cases_sha256(cases_path: str | Path) -> str:
+    """计算评测集原始字节的 SHA-256 指纹。"""
+    return sha256(Path(cases_path).read_bytes()).hexdigest()
+
+
+def load_evaluation_report(report_path: str | Path) -> AgentEvaluationReport:
+    """读取并校验一份已保存的评测报告。"""
+    return AgentEvaluationReport.model_validate_json(
+        Path(report_path).read_text(encoding="utf-8")
+    )
