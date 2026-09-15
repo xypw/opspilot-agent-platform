@@ -3,6 +3,9 @@ package dev.opspilot.business.orders;
 import static org.assertj.core.api.Assertions.*;
 import java.time.*;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import static dev.opspilot.business.orders.ReturnReviewService.*;
 
@@ -83,6 +86,32 @@ class ReturnDraftTest {
         assertThat(drafts.cancel(secondOrder.id(), cancelledDraft.draftId()).status()).isEqualTo("CANCELLED");
         assertThatThrownBy(() -> drafts.confirm(secondOrder, cancelledDraft.draftId()))
                 .hasMessage("DRAFT_CANCELLED");
+    }
+
+    @Test
+    void concurrentConfirmationReturnsTheSameApplication() throws Exception {
+        var noReasonOrder = new OrderResponse(
+                "O-2002", "delivered", "鼠标", LocalDate.of(2026, 8, 31), 3555);
+        var draft = drafts.start(noReasonOrder);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var task = (java.util.concurrent.Callable<ReturnDraftService.ApplicationResponse>) () -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("START_TIMEOUT");
+                return drafts.confirm(noReasonOrder, draft.draftId());
+            };
+            var first = pool.submit(task);
+            var second = pool.submit(task);
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(first.get(5, TimeUnit.SECONDS)).isEqualTo(second.get(5, TimeUnit.SECONDS));
+            assertThat(drafts.get(noReasonOrder.id(), draft.draftId()).status()).isEqualTo("SUBMITTED");
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
+        }
     }
 
     @Test

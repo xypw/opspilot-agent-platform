@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal, Protocol, TypedDict
 
@@ -19,6 +20,7 @@ from langgraph.types import Command, interrupt
 from pydantic import BaseModel, ConfigDict, Field
 
 from action_models import PendingAction
+from evidence_review import EvidenceReviewer, verify_evidence_review
 from grounding_policy import answer_when_evidence_is_missing, append_verified_citations
 from order_service_client import OrderServiceError
 from preview_tool_call import build_initial_messages, extract_tool_preview, load_api_key
@@ -107,6 +109,7 @@ class AgentGraphState(TypedDict, total=False):
     tool_steps: int
     tool_trace: list[dict]
     rag_evidence: list[dict]
+    evidence_review: dict
     model_requests: int
     simulated_model_requests: int
     model_http_attempts: int
@@ -343,6 +346,7 @@ def build_agent_graph(
     checkpointer=None,
     draft_gateway=None,
     tool_runner: AgentToolExecutor = execute_tool,
+    evidence_reviewer: EvidenceReviewer | None = None,
 ):
     """构建一个单 Agent 图；节点由 Python 函数构成，边定义下一步。"""
 
@@ -421,9 +425,18 @@ def build_agent_graph(
             "result": result,
         }]
         evidence = state.get("rag_evidence", [])
+        review_updates = {}
         if state["tool_name"] == "search_knowledge_base":
             if not isinstance(result, list):
                 raise ValueError("知识库工具结果不符合列表契约。")
+            if result and evidence_reviewer is not None:
+                question = next(
+                    message["content"] for message in reversed(state["messages"])
+                    if message.get("role") == "user"
+                )
+                raw_verdict = evidence_reviewer(question, deepcopy(result))
+                verdict, result = verify_evidence_review(raw_verdict, result)
+                review_updates["evidence_review"] = verdict.model_dump()
             evidence = evidence + result
         if state["tool_name"] == "check_return_eligibility" and result is not None:
             # 工具结果单独提交为 Checkpoint，恢复追问时不会再次执行查询。
@@ -444,6 +457,7 @@ def build_agent_graph(
         no_evidence_answer = answer_when_evidence_is_missing(state["tool_name"], result)
         if no_evidence_answer is not None:
             return {
+                **review_updates,
                 "tool_result": result,
                 "answer": no_evidence_answer,
                 "status": "COMPLETED",
@@ -451,6 +465,7 @@ def build_agent_graph(
                 "rag_evidence": evidence,
             }
         return {
+            **review_updates,
             "tool_result": result,
             "messages": state["messages"] + [build_tool_message(state["tool_call_id"], result)],
             "tool_trace": trace,

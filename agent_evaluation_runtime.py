@@ -73,7 +73,9 @@ def build_isolated_evaluation_graph():
         ticket_repository=ticket_repository,
         order_query=query_order,
         return_eligibility_query=query_offline_return_eligibility,
-        knowledge_search=search_knowledge_base,
+        knowledge_search=lambda query, limit: search_knowledge_base(
+            query, limit, backend="memory"
+        ),
         action_store=action_store,
     )
     # 默认 Checkpointer 是内存版；模型网关的 mock 模式不会读取 API Key。

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from document_parser import PDFNeedsOCRError
+from knowledge_base import DuplicateDocumentError, KnowledgeStoreUnavailableError
 from vector_store import InMemoryVectorStore
 
 
@@ -25,6 +26,9 @@ class ApiTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
+        backend_patch = patch("knowledge_base.KNOWLEDGE_STORE_BACKEND", "memory")
+        backend_patch.start()
+        self.addCleanup(backend_patch.stop)
 
     def test_health(self):
         response = self.client.get("/health")
@@ -121,6 +125,25 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(result["page"], 2)
         self.assertIn("三个工作日", result["content"])
 
+    def test_knowledge_search_does_not_return_timing_as_refund_steps(self):
+        response = self.client.post(
+            "/knowledge/search",
+            json={"query": "我应该怎么退款", "limit": 3},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_knowledge_search_database_failure_returns_503(self):
+        with patch("main.search_knowledge_base", side_effect=KnowledgeStoreUnavailableError()):
+            response = self.client.post(
+                "/knowledge/search",
+                json={"query": "退款多久到账", "limit": 3},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "知识库暂时无法检索文档"})
+
     def test_knowledge_search_rejects_invalid_limit_before_function(self):
         with patch("main.search_knowledge_base") as search:
             response = self.client.post(
@@ -149,7 +172,7 @@ class ApiTests(unittest.TestCase):
         }
         with (
             patch("main.ingest_pdf", return_value=result) as ingest,
-            patch("main.index_knowledge_chunks") as index_chunks,
+            patch("main.index_uploaded_document") as index_document,
         ):
             response = self.client.post(
                 "/documents/upload",
@@ -164,7 +187,49 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(ingest.call_args.kwargs, {
             "document_id": "refund-policy", "title": "售后与退款制度",
         })
-        index_chunks.assert_called_once_with(result["chunks"])
+        index_document.assert_called_once_with(result, "policy.pdf")
+
+    def test_duplicate_document_id_returns_409_without_hiding_conflict(self):
+        result = {
+            "document_id": "refund-policy", "title": "售后与退款制度", "status": "ready",
+            "page_count": 1, "chunk_count": 1, "ocr_required_pages": [],
+            "chunks": [{"chunk_id": "refund-policy-p1-c0", "title": "售后与退款制度",
+                        "page": 1, "content": "退款说明", "extraction_method": "text",
+                        "ocr_confidence": None}],
+        }
+        with (
+            patch("main.ingest_pdf", return_value=result),
+            patch("main.index_uploaded_document", side_effect=DuplicateDocumentError()),
+        ):
+            response = self.client.post(
+                "/documents/upload",
+                data={"document_id": "refund-policy", "title": "售后与退款制度"},
+                files={"file": ("policy.pdf", b"fake-pdf", "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json(), {"detail": "文档或片段编号已存在"})
+
+    def test_storage_failure_returns_503_not_invalid_pdf(self):
+        result = {
+            "document_id": "refund-policy", "title": "售后与退款制度", "status": "ready",
+            "page_count": 1, "chunk_count": 1, "ocr_required_pages": [],
+            "chunks": [{"chunk_id": "refund-policy-p1-c0", "title": "售后与退款制度",
+                        "page": 1, "content": "退款说明", "extraction_method": "text",
+                        "ocr_confidence": None}],
+        }
+        with (
+            patch("main.ingest_pdf", return_value=result),
+            patch("main.index_uploaded_document", side_effect=KnowledgeStoreUnavailableError()),
+        ):
+            response = self.client.post(
+                "/documents/upload",
+                data={"document_id": "refund-policy", "title": "售后与退款制度"},
+                files={"file": ("policy.pdf", b"fake-pdf", "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "知识库暂时无法保存文档"})
 
     def test_upload_then_semantic_search_uses_indexed_chunks(self):
         vector_store = InMemoryVectorStore(FakeEmbeddingService())

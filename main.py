@@ -1,11 +1,14 @@
 """OpsPilot API：文档入库、Agent 聊天、查询与高风险操作确认。"""
 
 from io import BytesIO
+from pathlib import Path
 
 import httpx
 import tool_executor
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from return_draft_client import ReturnOrderChanged
 from pydantic import ValidationError
 
@@ -38,7 +41,12 @@ from checkpoint_store import (
 from document_ingestion import ingest_pdf
 from document_models import DocumentIngestionResponse
 from document_parser import PDFNeedsOCRError
-from knowledge_base import index_knowledge_chunks, search_knowledge_base
+from knowledge_base import (
+    DuplicateDocumentError,
+    KnowledgeStoreUnavailableError,
+    index_uploaded_document,
+    search_knowledge_base,
+)
 from knowledge_models import KnowledgeSearchRequest, KnowledgeSearchResult
 from langgraph_checkpointer import build_agent_checkpointer
 from order_query_factory import build_order_query, build_return_eligibility_query
@@ -72,6 +80,21 @@ app = FastAPI(
 )
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
+_PROJECT_DIR = Path(__file__).resolve().parent
+app.mount("/demo-assets", StaticFiles(directory=_PROJECT_DIR / "static"), name="demo-assets")
+
+
+@app.get("/demo", include_in_schema=False)
+def demo_page():
+    return FileResponse(_PROJECT_DIR / "static" / "demo.html")
+
+
+@app.get("/demo/sample-policy.pdf", include_in_schema=False)
+def demo_sample_policy():
+    return FileResponse(
+        _PROJECT_DIR / "sample_documents" / "opspilot_demo_policy.pdf",
+        media_type="application/pdf", filename="opspilot-demo-policy.pdf",
+    )
 
 @app.exception_handler(ReturnOrderChanged)
 async def handle_return_order_changed(request, error: ReturnOrderChanged):
@@ -128,6 +151,8 @@ def health() -> dict[str, str]:
         413: {"description": "文件超过 10 MB"},
         415: {"description": "当前只支持 PDF"},
         422: {"description": "字段无效或整份 PDF 需要 OCR"},
+        409: {"description": "文档编号已存在"},
+        503: {"description": "知识库存储暂不可用"},
     },
 )
 async def upload_document(
@@ -149,12 +174,19 @@ async def upload_document(
 
     try:
         result = ingest_pdf(BytesIO(content), document_id=document_id, title=title)
-        index_knowledge_chunks(result["chunks"])
-        return result
     except PDFNeedsOCRError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     except ValueError:
         raise HTTPException(status_code=400, detail="PDF 文件无法读取或格式无效") from None
+    if not result["chunks"]:
+        raise HTTPException(status_code=422, detail="文档没有可索引的文字")
+    try:
+        index_uploaded_document(result, filename)
+    except DuplicateDocumentError:
+        raise HTTPException(status_code=409, detail="文档或片段编号已存在") from None
+    except KnowledgeStoreUnavailableError:
+        raise HTTPException(status_code=503, detail="知识库暂时无法保存文档") from None
+    return result
 
 
 @app.get(
@@ -186,9 +218,13 @@ def get_order(order_id: str) -> dict[str, object]:
     "/knowledge/search",
     response_model=list[KnowledgeSearchResult],
     summary="搜索企业知识库并返回可引用片段",
+    responses={503: {"description": "知识库暂时无法检索文档"}},
 )
 def search_knowledge(request: KnowledgeSearchRequest) -> list[dict]:
-    results = search_knowledge_base(request.query, request.limit)
+    try:
+        results = search_knowledge_base(request.query, request.limit)
+    except KnowledgeStoreUnavailableError:
+        raise HTTPException(status_code=503, detail="知识库暂时无法检索文档") from None
     return results
 
 
@@ -355,6 +391,8 @@ def start_langgraph_agent(request: AgentGraphStartRequest) -> AgentGraphResponse
         raise HTTPException(status_code=503, detail=str(error)) from None
     except OrderServiceError as error:
         raise HTTPException(status_code=503, detail=str(error)) from None
+    except KnowledgeStoreUnavailableError:
+        raise HTTPException(status_code=503, detail="知识库暂时无法检索文档") from None
     except TicketNotFoundError as error:
         # 工具参数合法但目标工单不存在，属于业务资源不存在而不是模型服务故障。
         raise HTTPException(status_code=404, detail=str(error)) from None

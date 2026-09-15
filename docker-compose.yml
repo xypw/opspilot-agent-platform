@@ -76,6 +76,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       TICKET_REPOSITORY_BACKEND: postgres
+      KNOWLEDGE_STORE_BACKEND: postgres
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       ORDER_QUERY_BACKEND: java
       ORDER_SERVICE_URL: http://business-service:8081

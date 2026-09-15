@@ -15,6 +15,7 @@ class AgentEvaluationCase(BaseModel):
     expected_status: AgentGraphStatus = "COMPLETED"
     expected_tools: list[str] = Field(min_length=1)
     answer_must_contain: list[str] = Field(default_factory=list)
+    answer_must_not_contain: list[str] = Field(default_factory=list)
     citation_required: bool = False
     return_application_expected: bool | None = None
 
@@ -87,6 +88,10 @@ def is_task_successful(
         required_text in response.answer
         for required_text in case.answer_must_contain
     )
+    forbidden_text_absent = all(
+        forbidden_text not in response.answer
+        for forbidden_text in case.answer_must_not_contain
+    )
 
     # 不要求引用时直接通过；要求引用时必须出现统一的来源标记。
     citation_matches = (
@@ -109,6 +114,7 @@ def is_task_successful(
         status_matches
         and tools_match
         and answer_matches
+        and forbidden_text_absent
         and citation_matches
         and return_application_matches
     )
@@ -141,6 +147,12 @@ def collect_failure_reasons(
         for required_text in case.answer_must_contain
     ):
         failure_reasons.append("missing_required_text")
+
+    if any(
+        forbidden_text in response.answer
+        for forbidden_text in case.answer_must_not_contain
+    ):
+        failure_reasons.append("forbidden_answer_text")
 
     # 只有明确要求引用却没有来源标记时，才记录引用缺失。
     if case.citation_required and "来源：" not in response.answer:

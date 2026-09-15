@@ -62,6 +62,41 @@ class HybridSearchTests(unittest.TestCase):
         self.assertIn("keyword_score", results[0])
         self.assertIn("rrf_score", results[0])
 
+    def test_low_semantic_score_without_keyword_match_returns_no_evidence(self):
+        records = [{
+            "chunk_id": "refund",
+            "title": "退款制度",
+            "page": 1,
+            "content": "退款将在三个工作日内到账。",
+            "embedding": [0.0, 1.0],
+        }]
+        results = hybrid_search(
+            "食堂菜单", records, FakeEmbeddingService(),
+            min_semantic_similarity=0.6,
+        )
+        self.assertEqual(results, [])
+
+    def test_weak_keyword_overlap_does_not_bypass_semantic_threshold(self):
+        records = [{
+            "chunk_id": "refund",
+            "title": "退款制度",
+            "page": 1,
+            "content": "退款将在三个工作日内到账。",
+            "embedding": [0.0, 1.0],
+        }]
+        results = hybrid_search(
+            "食堂退款菜单", records, FakeEmbeddingService(),
+            min_semantic_similarity=0.6,
+        )
+        self.assertEqual(results, [])
+
+    def test_exact_error_code_survives_semantic_threshold(self):
+        results = hybrid_search(
+            "PAYMENT_403", self.records, FakeEmbeddingService(), limit=1,
+            min_semantic_similarity=0.8,
+        )
+        self.assertEqual(results[0]["chunk_id"], "payment-403")
+
     def test_invalid_fusion_parameters_are_rejected(self):
         for limit, rank_constant in [(0, 60), (True, 60), (1, 0), (1, True)]:
             with self.subTest(limit=limit, rank_constant=rank_constant):

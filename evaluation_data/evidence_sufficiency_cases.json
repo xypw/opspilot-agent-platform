@@ -1,0 +1,17 @@
+[
+  {"case_id": "refund_eta_answer", "question": "退款多久到账", "candidate_content": "退款审核通过后三个工作日原路到账。", "sufficient": true, "rationale": "直接给出到账时间"},
+  {"case_id": "refund_online_steps", "question": "我应该怎么退款", "candidate_content": "打开订单详情页，点击申请退款并填写原因。", "sufficient": true, "rationale": "包含线上申请步骤"},
+  {"case_id": "refund_counter_steps", "question": "如何申请退款", "candidate_content": "携带订单号和商品至售后服务台办理退款。", "sufficient": true, "rationale": "包含线下申请步骤"},
+  {"case_id": "invoice_destination_answer", "question": "电子发票会发送到哪里", "candidate_content": "电子发票将发送到订单中填写的邮箱。", "sufficient": true, "rationale": "直接给出发送位置"},
+  {"case_id": "priority_sla_answer", "question": "高优先级工单多久首次响应", "candidate_content": "高优先级工单应在二十分钟内首次响应。", "sufficient": true, "rationale": "直接给出首次响应时间"},
+  {"case_id": "invoice_application_steps", "question": "如何申请电子发票", "candidate_content": "进入订单详情页，点击申请电子发票，填写邮箱。", "sufficient": true, "rationale": "包含发票申请步骤"},
+  {"case_id": "refund_steps_from_eta", "question": "我应该怎么退款", "candidate_content": "退款审核通过后三个工作日原路到账。", "sufficient": false, "rationale": "到账时间不是申请步骤"},
+  {"case_id": "refund_steps_from_submitted_status", "question": "如何申请退款", "candidate_content": "客户提交退款申请后，三个工作日到账。", "sufficient": false, "rationale": "描述已提交后的状态"},
+  {"case_id": "refund_steps_from_counter_status", "question": "如何申请退款", "candidate_content": "客户携带订单号至售后服务台办理退款后，三个工作日到账。", "sufficient": false, "rationale": "描述办完后的状态"},
+  {"case_id": "refund_eta_from_steps", "question": "退款多久到账", "candidate_content": "打开订单详情页，点击申请退款并填写原因。", "sufficient": false, "rationale": "申请步骤没有到账时间"},
+  {"case_id": "invoice_destination_from_eligibility", "question": "电子发票会发送到哪里", "candidate_content": "订单完成后可以申请电子发票。", "sufficient": false, "rationale": "可申请不等于说明发送位置"},
+  {"case_id": "overtime_from_refund", "question": "员工加班工资怎么算", "candidate_content": "退款审核通过后三个工作日原路到账。", "sufficient": false, "rationale": "主题完全不同"},
+  {"case_id": "refund_where_from_eta", "question": "退款在哪里申请", "candidate_content": "退款审核通过后三个工作日原路到账。", "sufficient": false, "rationale": "到账时间没有申请入口"},
+  {"case_id": "cancel_order_from_refund_steps", "question": "订单怎么取消", "candidate_content": "打开订单详情页，点击申请退款并填写原因。", "sufficient": false, "rationale": "退款步骤不能回答取消订单"},
+  {"case_id": "invoice_steps_from_destination", "question": "如何申请电子发票", "candidate_content": "电子发票将发送到订单中填写的邮箱。", "sufficient": false, "rationale": "邮箱用途不是申请步骤"}
+]

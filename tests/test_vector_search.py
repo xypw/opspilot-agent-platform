@@ -39,6 +39,17 @@ class VectorSearchTests(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["chunk_id"], "refund-p2-c0")
 
+    def test_min_similarity_filters_weak_candidates_before_top_k(self):
+        results = semantic_search(
+            "退款", self.records, self.service,
+            min_similarity=0.6,
+        )
+        self.assertEqual([item["chunk_id"] for item in results], ["refund-p2-c0"])
+        self.assertEqual(
+            semantic_search("退款", self.records, self.service, min_similarity=0.99),
+            [],
+        )
+
     def test_response_does_not_expose_large_embedding(self):
         result = semantic_search("退款", self.records, self.service, limit=1)[0]
         self.assertNotIn("embedding", result)
@@ -54,6 +65,11 @@ class VectorSearchTests(unittest.TestCase):
         records = [{"content": "错误向量", "embedding": [1.0, 0.0, 0.0]}]
         with self.assertRaisesRegex(ValueError, "维度不一致"):
             semantic_search("退款", records, self.service)
+
+    def test_invalid_similarity_threshold_is_rejected(self):
+        for threshold in (True, float("nan"), float("inf"), -1.1, 1.1, "0.6"):
+            with self.subTest(threshold=threshold), self.assertRaisesRegex(ValueError, "min_similarity"):
+                semantic_search("退款", self.records, self.service, min_similarity=threshold)
 
 
 if __name__ == "__main__":

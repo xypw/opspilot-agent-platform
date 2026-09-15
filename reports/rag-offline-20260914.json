@@ -1,0 +1,530 @@
+{
+  "mode": "offline_cached_embedding_no_llm_no_reranker",
+  "datasets": {
+    "retrieval_cases": "evaluation_data/retrieval_cases.json",
+    "retrieval_documents": "evaluation_data/retrieval_documents.json",
+    "evidence_cases": "evaluation_data/evidence_sufficiency_cases.json"
+  },
+  "scope": {
+    "retrieval": "11条固定正例上的本地语义/混合检索，不含负例或真实企业流量",
+    "evidence": "人工给定单个候选片段，测试当前准入规则；不是端到端检索结果",
+    "citation": "混合检索Top3经生产引用格式化器输出；严格以每题单一标准来源核对，不评价模型答案语义"
+  },
+  "retrieval": [
+    {
+      "retriever": "semantic",
+      "case_count": 11,
+      "k": 3,
+      "recall_at_k": 1.0,
+      "mrr_at_k": 1.0,
+      "runs": [
+        {
+          "case_id": "emergency-refund-arrival",
+          "query": "紧急退款审核通过后多久到账？",
+          "expected_chunk_id": "refund-emergency-eta-p1-c1",
+          "retrieved_chunk_ids": [
+            "refund-emergency-eta-p1-c1",
+            "refund-standard-eta-p2-c1",
+            "refund-cancel-p2-c3"
+          ]
+        },
+        {
+          "case_id": "standard-refund-arrival",
+          "query": "普通退款审核通过后多久到账？",
+          "expected_chunk_id": "refund-standard-eta-p2-c1",
+          "retrieved_chunk_ids": [
+            "refund-standard-eta-p2-c1",
+            "refund-emergency-eta-p1-c1",
+            "refund-cancel-p2-c3"
+          ]
+        },
+        {
+          "case_id": "refund-eligibility",
+          "query": "已签收订单还能申请退款吗？",
+          "expected_chunk_id": "refund-eligibility-p2-c2",
+          "retrieved_chunk_ids": [
+            "refund-eligibility-p2-c2",
+            "refund-cancel-p2-c3",
+            "order-cancel-p3-c2"
+          ]
+        },
+        {
+          "case_id": "refund-cancel",
+          "query": "退款审核通过以后还能撤销吗？",
+          "expected_chunk_id": "refund-cancel-p2-c3",
+          "retrieved_chunk_ids": [
+            "refund-cancel-p2-c3",
+            "refund-standard-eta-p2-c1",
+            "refund-emergency-eta-p1-c1"
+          ]
+        },
+        {
+          "case_id": "high-ticket-first-response",
+          "query": "高优先级工单多久首次响应？",
+          "expected_chunk_id": "ticket-high-sla-p4-c1",
+          "retrieved_chunk_ids": [
+            "ticket-high-sla-p4-c1",
+            "ticket-normal-sla-p4-c2",
+            "ticket-priority-change-p5-c1"
+          ]
+        },
+        {
+          "case_id": "normal-ticket-first-response",
+          "query": "普通优先级工单多久首次响应？",
+          "expected_chunk_id": "ticket-normal-sla-p4-c2",
+          "retrieved_chunk_ids": [
+            "ticket-normal-sla-p4-c2",
+            "ticket-high-sla-p4-c1",
+            "ticket-priority-change-p5-c1"
+          ]
+        },
+        {
+          "case_id": "ticket-priority-change",
+          "query": "提高工单优先级是否需要用户确认？",
+          "expected_chunk_id": "ticket-priority-change-p5-c1",
+          "retrieved_chunk_ids": [
+            "ticket-priority-change-p5-c1",
+            "ticket-normal-sla-p4-c2",
+            "ticket-high-sla-p4-c1"
+          ]
+        },
+        {
+          "case_id": "invoice-application",
+          "query": "订单完成后怎么申请电子发票？",
+          "expected_chunk_id": "invoice-application-p1-c1",
+          "retrieved_chunk_ids": [
+            "invoice-application-p1-c1",
+            "invoice-delivery-p1-c2",
+            "refund-eligibility-p2-c2"
+          ]
+        },
+        {
+          "case_id": "invoice-delivery",
+          "query": "电子发票开好后发送到哪里？",
+          "expected_chunk_id": "invoice-delivery-p1-c2",
+          "retrieved_chunk_ids": [
+            "invoice-delivery-p1-c2",
+            "invoice-application-p1-c1",
+            "refund-standard-eta-p2-c1"
+          ]
+        },
+        {
+          "case_id": "order-cancel",
+          "query": "处理中订单可以直接取消吗？",
+          "expected_chunk_id": "order-cancel-p3-c2",
+          "retrieved_chunk_ids": [
+            "order-cancel-p3-c2",
+            "order-status-p3-c1",
+            "refund-eligibility-p2-c2"
+          ]
+        },
+        {
+          "case_id": "payment-403",
+          "query": "PAYMENT_403 表示什么？",
+          "expected_chunk_id": "payment-permission-p6-c1",
+          "retrieved_chunk_ids": [
+            "payment-permission-p6-c1",
+            "order-status-p3-c1",
+            "ticket-high-sla-p4-c1"
+          ]
+        }
+      ]
+    },
+    {
+      "retriever": "hybrid_rrf",
+      "case_count": 11,
+      "k": 3,
+      "recall_at_k": 1.0,
+      "mrr_at_k": 1.0,
+      "runs": [
+        {
+          "case_id": "emergency-refund-arrival",
+          "query": "紧急退款审核通过后多久到账？",
+          "expected_chunk_id": "refund-emergency-eta-p1-c1",
+          "retrieved_chunk_ids": [
+            "refund-emergency-eta-p1-c1",
+            "refund-standard-eta-p2-c1",
+            "refund-cancel-p2-c3"
+          ]
+        },
+        {
+          "case_id": "standard-refund-arrival",
+          "query": "普通退款审核通过后多久到账？",
+          "expected_chunk_id": "refund-standard-eta-p2-c1",
+          "retrieved_chunk_ids": [
+            "refund-standard-eta-p2-c1",
+            "refund-emergency-eta-p1-c1",
+            "refund-cancel-p2-c3"
+          ]
+        },
+        {
+          "case_id": "refund-eligibility",
+          "query": "已签收订单还能申请退款吗？",
+          "expected_chunk_id": "refund-eligibility-p2-c2",
+          "retrieved_chunk_ids": [
+            "refund-eligibility-p2-c2",
+            "refund-cancel-p2-c3",
+            "invoice-application-p1-c1"
+          ]
+        },
+        {
+          "case_id": "refund-cancel",
+          "query": "退款审核通过以后还能撤销吗？",
+          "expected_chunk_id": "refund-cancel-p2-c3",
+          "retrieved_chunk_ids": [
+            "refund-cancel-p2-c3",
+            "refund-emergency-eta-p1-c1",
+            "refund-standard-eta-p2-c1"
+          ]
+        },
+        {
+          "case_id": "high-ticket-first-response",
+          "query": "高优先级工单多久首次响应？",
+          "expected_chunk_id": "ticket-high-sla-p4-c1",
+          "retrieved_chunk_ids": [
+            "ticket-high-sla-p4-c1",
+            "ticket-normal-sla-p4-c2",
+            "ticket-priority-change-p5-c1"
+          ]
+        },
+        {
+          "case_id": "normal-ticket-first-response",
+          "query": "普通优先级工单多久首次响应？",
+          "expected_chunk_id": "ticket-normal-sla-p4-c2",
+          "retrieved_chunk_ids": [
+            "ticket-normal-sla-p4-c2",
+            "ticket-high-sla-p4-c1",
+            "ticket-priority-change-p5-c1"
+          ]
+        },
+        {
+          "case_id": "ticket-priority-change",
+          "query": "提高工单优先级是否需要用户确认？",
+          "expected_chunk_id": "ticket-priority-change-p5-c1",
+          "retrieved_chunk_ids": [
+            "ticket-priority-change-p5-c1",
+            "ticket-high-sla-p4-c1",
+            "ticket-normal-sla-p4-c2"
+          ]
+        },
+        {
+          "case_id": "invoice-application",
+          "query": "订单完成后怎么申请电子发票？",
+          "expected_chunk_id": "invoice-application-p1-c1",
+          "retrieved_chunk_ids": [
+            "invoice-application-p1-c1",
+            "invoice-delivery-p1-c2",
+            "order-status-p3-c1"
+          ]
+        },
+        {
+          "case_id": "invoice-delivery",
+          "query": "电子发票开好后发送到哪里？",
+          "expected_chunk_id": "invoice-delivery-p1-c2",
+          "retrieved_chunk_ids": [
+            "invoice-delivery-p1-c2",
+            "invoice-application-p1-c1",
+            "refund-standard-eta-p2-c1"
+          ]
+        },
+        {
+          "case_id": "order-cancel",
+          "query": "处理中订单可以直接取消吗？",
+          "expected_chunk_id": "order-cancel-p3-c2",
+          "retrieved_chunk_ids": [
+            "order-cancel-p3-c2",
+            "order-status-p3-c1",
+            "refund-eligibility-p2-c2"
+          ]
+        },
+        {
+          "case_id": "payment-403",
+          "query": "PAYMENT_403 表示什么？",
+          "expected_chunk_id": "payment-permission-p6-c1",
+          "retrieved_chunk_ids": [
+            "payment-permission-p6-c1",
+            "order-status-p3-c1",
+            "ticket-high-sla-p4-c1"
+          ]
+        }
+      ]
+    }
+  ],
+  "evidence_sufficiency": {
+    "case_count": 15,
+    "counts": {
+      "tp": 6,
+      "fn": 0,
+      "fp": 6,
+      "tn": 3
+    },
+    "results": [
+      {
+        "case_id": "refund_eta_answer",
+        "sufficient": true,
+        "admitted": true,
+        "outcome": "tp"
+      },
+      {
+        "case_id": "refund_online_steps",
+        "sufficient": true,
+        "admitted": true,
+        "outcome": "tp"
+      },
+      {
+        "case_id": "refund_counter_steps",
+        "sufficient": true,
+        "admitted": true,
+        "outcome": "tp"
+      },
+      {
+        "case_id": "invoice_destination_answer",
+        "sufficient": true,
+        "admitted": true,
+        "outcome": "tp"
+      },
+      {
+        "case_id": "priority_sla_answer",
+        "sufficient": true,
+        "admitted": true,
+        "outcome": "tp"
+      },
+      {
+        "case_id": "invoice_application_steps",
+        "sufficient": true,
+        "admitted": true,
+        "outcome": "tp"
+      },
+      {
+        "case_id": "refund_steps_from_eta",
+        "sufficient": false,
+        "admitted": false,
+        "outcome": "tn"
+      },
+      {
+        "case_id": "refund_steps_from_submitted_status",
+        "sufficient": false,
+        "admitted": false,
+        "outcome": "tn"
+      },
+      {
+        "case_id": "refund_steps_from_counter_status",
+        "sufficient": false,
+        "admitted": false,
+        "outcome": "tn"
+      },
+      {
+        "case_id": "refund_eta_from_steps",
+        "sufficient": false,
+        "admitted": true,
+        "outcome": "fp"
+      },
+      {
+        "case_id": "invoice_destination_from_eligibility",
+        "sufficient": false,
+        "admitted": true,
+        "outcome": "fp"
+      },
+      {
+        "case_id": "overtime_from_refund",
+        "sufficient": false,
+        "admitted": true,
+        "outcome": "fp"
+      },
+      {
+        "case_id": "refund_where_from_eta",
+        "sufficient": false,
+        "admitted": true,
+        "outcome": "fp"
+      },
+      {
+        "case_id": "cancel_order_from_refund_steps",
+        "sufficient": false,
+        "admitted": true,
+        "outcome": "fp"
+      },
+      {
+        "case_id": "invoice_steps_from_destination",
+        "sufficient": false,
+        "admitted": true,
+        "outcome": "fp"
+      }
+    ],
+    "false_rejection_rate": 0.0,
+    "false_admission_rate": 0.6666666666666666
+  },
+  "citation_sources": {
+    "case_count": 11,
+    "citation_count": 33,
+    "gold_citation_count": 11,
+    "gold_source_precision": 0.3333333333333333,
+    "gold_source_recall": 1.0,
+    "results": [
+      {
+        "case_id": "emergency-refund-arrival",
+        "gold_chunk_id": "refund-emergency-eta-p1-c1",
+        "gold_source": "《紧急退款处理规则》第1页",
+        "cited_sources": [
+          "《紧急退款处理规则》第1页",
+          "《普通退款到账说明》第2页",
+          "《退款申请撤销说明》第2页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《普通退款到账说明》第2页",
+          "《退款申请撤销说明》第2页"
+        ]
+      },
+      {
+        "case_id": "standard-refund-arrival",
+        "gold_chunk_id": "refund-standard-eta-p2-c1",
+        "gold_source": "《普通退款到账说明》第2页",
+        "cited_sources": [
+          "《普通退款到账说明》第2页",
+          "《紧急退款处理规则》第1页",
+          "《退款申请撤销说明》第2页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《紧急退款处理规则》第1页",
+          "《退款申请撤销说明》第2页"
+        ]
+      },
+      {
+        "case_id": "refund-eligibility",
+        "gold_chunk_id": "refund-eligibility-p2-c2",
+        "gold_source": "《退款申请条件》第2页",
+        "cited_sources": [
+          "《退款申请条件》第2页",
+          "《退款申请撤销说明》第2页",
+          "《电子发票申请指南》第1页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《退款申请撤销说明》第2页",
+          "《电子发票申请指南》第1页"
+        ]
+      },
+      {
+        "case_id": "refund-cancel",
+        "gold_chunk_id": "refund-cancel-p2-c3",
+        "gold_source": "《退款申请撤销说明》第2页",
+        "cited_sources": [
+          "《退款申请撤销说明》第2页",
+          "《紧急退款处理规则》第1页",
+          "《普通退款到账说明》第2页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《紧急退款处理规则》第1页",
+          "《普通退款到账说明》第2页"
+        ]
+      },
+      {
+        "case_id": "high-ticket-first-response",
+        "gold_chunk_id": "ticket-high-sla-p4-c1",
+        "gold_source": "《高优先级工单服务规范》第4页",
+        "cited_sources": [
+          "《高优先级工单服务规范》第4页",
+          "《普通优先级工单服务规范》第4页",
+          "《工单优先级变更流程》第5页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《普通优先级工单服务规范》第4页",
+          "《工单优先级变更流程》第5页"
+        ]
+      },
+      {
+        "case_id": "normal-ticket-first-response",
+        "gold_chunk_id": "ticket-normal-sla-p4-c2",
+        "gold_source": "《普通优先级工单服务规范》第4页",
+        "cited_sources": [
+          "《普通优先级工单服务规范》第4页",
+          "《高优先级工单服务规范》第4页",
+          "《工单优先级变更流程》第5页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《高优先级工单服务规范》第4页",
+          "《工单优先级变更流程》第5页"
+        ]
+      },
+      {
+        "case_id": "ticket-priority-change",
+        "gold_chunk_id": "ticket-priority-change-p5-c1",
+        "gold_source": "《工单优先级变更流程》第5页",
+        "cited_sources": [
+          "《工单优先级变更流程》第5页",
+          "《高优先级工单服务规范》第4页",
+          "《普通优先级工单服务规范》第4页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《高优先级工单服务规范》第4页",
+          "《普通优先级工单服务规范》第4页"
+        ]
+      },
+      {
+        "case_id": "invoice-application",
+        "gold_chunk_id": "invoice-application-p1-c1",
+        "gold_source": "《电子发票申请指南》第1页",
+        "cited_sources": [
+          "《电子发票申请指南》第1页",
+          "《电子发票发送说明》第1页",
+          "《订单状态说明》第3页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《电子发票发送说明》第1页",
+          "《订单状态说明》第3页"
+        ]
+      },
+      {
+        "case_id": "invoice-delivery",
+        "gold_chunk_id": "invoice-delivery-p1-c2",
+        "gold_source": "《电子发票发送说明》第1页",
+        "cited_sources": [
+          "《电子发票发送说明》第1页",
+          "《电子发票申请指南》第1页",
+          "《普通退款到账说明》第2页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《电子发票申请指南》第1页",
+          "《普通退款到账说明》第2页"
+        ]
+      },
+      {
+        "case_id": "order-cancel",
+        "gold_chunk_id": "order-cancel-p3-c2",
+        "gold_source": "《订单取消规则》第3页",
+        "cited_sources": [
+          "《订单取消规则》第3页",
+          "《订单状态说明》第3页",
+          "《退款申请条件》第2页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《订单状态说明》第3页",
+          "《退款申请条件》第2页"
+        ]
+      },
+      {
+        "case_id": "payment-403",
+        "gold_chunk_id": "payment-permission-p6-c1",
+        "gold_source": "《支付错误码手册》第6页",
+        "cited_sources": [
+          "《支付错误码手册》第6页",
+          "《订单状态说明》第3页",
+          "《高优先级工单服务规范》第4页"
+        ],
+        "gold_source_cited": true,
+        "non_gold_sources": [
+          "《订单状态说明》第3页",
+          "《高优先级工单服务规范》第4页"
+        ]
+      }
+    ]
+  }
+}

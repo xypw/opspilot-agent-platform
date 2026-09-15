@@ -1,0 +1,8 @@
+[
+  {"case_id": "refund_eta", "question": "退款多久到账", "answerable": true, "top_score": 0.642},
+  {"case_id": "priority_first_response", "question": "高优先级工单多久首次响应", "answerable": true, "top_score": 0.582},
+  {"case_id": "invoice_destination", "question": "电子发票会发送到哪里", "answerable": true, "top_score": 0.520},
+  {"case_id": "refund_howto", "question": "我应该怎么退款", "answerable": false, "top_score": 0.559},
+  {"case_id": "exchange_howto", "question": "换货申请如何提交", "answerable": false, "top_score": 0.542},
+  {"case_id": "overtime_pay", "question": "员工加班工资怎么算", "answerable": false, "top_score": 0.470}
+]

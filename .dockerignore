@@ -12,5 +12,6 @@ __pycache__
 .maven-cache
 business-service
 output
+reports
 tests
 tmp

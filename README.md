@@ -1,5 +1,7 @@
 # OpsPilot
 
+9 月 26 日投递目标与三天模拟面试的倒排安排见 [交付计划](DELIVERY_PLAN_2026-09-26.md)。
+
 电商售后、企业知识库与工单协同 Agent，按可运行的小功能逐步开发。
 
 项目级编码 Agent 约定见 [AGENTS.md](AGENTS.md)，真实的需求拆解、上下文选择、
@@ -21,14 +23,29 @@
 - 已实现：RAG混合检索与重排序、LangGraph状态与人工确认、Redis Checkpoint、
   PostgreSQL/pgvector、Java订单规则服务，以及退货草稿、预审、确认、幂等和冲突恢复流程。
 - 已实现：Java 退货草稿与正式申请的可切换内存/PostgreSQL 存储，使用 Flyway V2 迁移、
-  数据库事务、行锁和唯一约束保证跨重启恢复与 `draft_id` 幂等。
+  数据库事务、行锁和唯一约束保证跨重启恢复与 `draft_id` 幂等；并发确认后重新读取
+  持久化申请，避免第二个请求返回未落库的临时编号。
+- 已实现：同源 `/demo` 页面，支持上传资料、模拟/真实任务、状态恢复、补充原因和人工确认。
 - 已实现：LangGraph 受限多步工具循环，单次任务最多执行 3 个工具步骤；响应返回
   `tool_trace`，RAG 证据跨步骤累计并由程序生成引用。
-- 已实现：6 条固定 Agent 任务评测集、状态/工具顺序/必要事实/引用和退货副作用判定、失败原因聚合，
+- 已实现：7 条固定 Agent 任务评测集、状态/工具顺序/必要事实/禁止输出/引用和退货副作用判定、失败原因聚合，
   以及可切换 `isolated`/`app` 运行环境的批量执行器。
 - 尚未完成：退货过期数据清理、统一可观测性、生产环境部署和完整真实模型任务评测。
 - 已完成本地练习：解析 JSON 参数，用 Pydantic 校验并规范化编号，再调用查询函数。
-- 当前真实闭环验证：接口曾返回 429 / 1305（模型访问量过大），仍需成功的真实请求验收。
+- 2026-09-13 的实测记录见 [真实集成验收](reports/2026-09-13-integration.md)：
+  PostgreSQL PDF 上传、重启后检索和 Agent 引用已联通；独立四服务环境的 `mock + app` 为 7/7，
+  `live + isolated` 为 4/7（2 条遇到模型 HTTP 429，1 条安全拒绝但未按预期调用只读工具）。
+  这两项不能合并称为“真实模型完整联调通过”，也不是生产质量指标。
+- 2026-09-15 的 RAG 回归：在 47 条人工构造的固定证据准入案例上，旧规则误放行
+  21 条，当前规则误放行 0 条、误拒 0 条；结果见
+  `reports/rag-offline-evidence-v2.json`。这些案例参与规则开发，只能证明固定回归集表现，
+  不能当作未见数据或线上泛化指标。
+- 同日获授权后，对 11 条虚构问题和 12 段演示政策调用硅基流动 Reranker；语义检索、
+  RRF 与重排的 Recall@3、MRR@3 均为 1.0，没有测出重排增益，说明这组正例过于简单。
+  原始报告见 `reports/retrieval-reranker-20260915.json`，不得写成“重排显著提升”。
+- 当前隔离内存配置下 Python 全量回归为 382 项通过、3 项跳过；前端演示测试 3/3 通过。
+  Docker Desktop 因本机 `sailor-ingest.sock` 故障暂时无法启动，因此本轮未复跑四服务容器验收；
+  上述 7/7 四服务结果来自 2026-09-13 已保存的原始报告。
 
 ## Docker Compose 一键启动
 
@@ -48,6 +65,7 @@ Java 镜像构建使用 `business-service/maven-settings.xml` 将 Maven Central 
 四个服务都显示为 `healthy` 后访问：
 
 - FastAPI 文档：<http://127.0.0.1:8011/docs>
+- 本地演示页：<http://127.0.0.1:8011/demo>
 - Java 订单接口：<http://127.0.0.1:8081/api/orders/O-2001>
 
 容器内通过 `postgres`、`redis`、`business-service` 这些服务名互相访问，不能使用
@@ -55,14 +73,60 @@ Java 镜像构建使用 `business-service/maven-settings.xml` 将 Maven Central 
 数据库、Redis 和 Java 跨服务联调。需要 live 模型时再通过部署环境单独注入密钥。
 为避免和本机 Redis 冲突，Compose 默认把 Redis 暴露到宿主机 `6380`；容器间仍访问 `6379`。
 
+### 演示页快速验收
+
+1. 在 `/demo` 下载并上传仓库自带的**虚构中文售后制度**，标题可填“虚构中文售后制度”。
+2. 保持“模拟模式”，问“退款多久到账？”。回答应展示普通/紧急退款时效和资料标题、页码；
+   Mock 只证明调用与引用链路，不代表真实模型的回答质量。
+3. 查询虚构工单 `T-1003`，再发起优先级修改。页面应先展示目标工单、原优先级和新优先级；
+   取消不修改，明确确认后才写入。操作会改变当前本地演示数据库，请勿使用真实订单或工单。
+4. 记录页面显示的 `thread_id`，刷新后输入该编号点“读取状态”。读取不会重新执行写操作。
+
+样例 PDF 的源码是 `scripts/create_sample_pdf.py`；重新生成需要 `reportlab` 和中文 TrueType
+字体（Windows 默认使用 SimHei，也可用 `OPSPILOT_DEMO_FONT` 指定）。运行服务不需要
+`reportlab`，镜像直接使用仓库中已生成的 PDF。演示服务目前没有公网鉴权，请只在本机使用。
+
+前端和 Python 的快速回归：
+
+```powershell
+node --test static/demo.test.cjs
+.\.venv\Scripts\python.exe -X utf8 -m unittest tests.test_demo_page tests.test_agent_graph
+```
+
+Java 的 PostgreSQL 并发幂等测试可复用正在运行的 Compose 数据库；测试使用随机虚构订单，
+结束时清理自己的记录。以下离线命令要求 `.maven-cache` 已有依赖：
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm --no-deps `
+  java-tests mvn -o -B -ntp -Dtest=PostgresReturnDraftIntegrationTest test
+```
+
 停止服务但保留数据库数据：
 
 ```powershell
 docker compose down
 ```
 
-当前上传文档的向量仍保存在 Python 进程内存中；PostgreSQL 已启用 pgvector 并创建表和索引，
-但上传/检索主链路尚未切换到 pgvector，不能把当前阶段描述为“知识库已持久化”。
+本机直接运行默认使用 Python 进程内存。显式设置 `KNOWLEDGE_STORE_BACKEND=postgres` 时，
+上传与检索会使用同一个 PostgreSQL/pgvector 后端；Compose 已选择该模式。数据库查询失败
+返回 503，不回退到演示片段。真实四服务环境已验证 PDF 上传、pgvector 检索、Agent 引用和
+API 重启后持续可检索；本机证据见 `reports/2026-09-13-integration.md`。PostgreSQL 路径目前是语义检索，内存路径的
+关键词/RRF/重排能力还未迁移到 PostgreSQL，二者不能宣称质量等价。
+
+内存与 PostgreSQL 检索都使用可配置的实验性最低余弦相似度（默认 `0.60`）；
+第二道保守规则会阻止“怎么申请退款”从仅描述到账时间的片段获得流程答案。
+这不是通用的语义蕴含验证：流程文字的不同写法可能误拒，其他类型的证据不足仍可能漏过。
+必须用正反例标注集和真实模型继续评测，不得把本地 mock 通过当作生产可靠性证明。
+可用 `.\.venv\Scripts\python.exe -X utf8 scripts/evaluate_evidence_thresholds.py` 离线重放
+6 条历史最高分，查看单一门槛的误拒/误放行权衡；这不是完整 RAG 准确率。
+另可运行 `.\.venv\Scripts\python.exe -X utf8 scripts/evaluate_evidence_sufficiency.py`
+检查人工构造的候选片段是否真的含有回答所需信息；基线与局限见
+`reports/evidence-sufficiency-offline-20260913.md`。
+
+检索路径默认执行确定性证据门禁，按业务主题、答案类型、精确业务标识符和限定词过滤候选片段；
+LangGraph 另支持可选 `evidence_reviewer` 注入：返回结构化的支持判定、片段原文引文和缺失信息，
+由 `evidence_review.py` 校验后仅将核实摘录交给回答模型。默认未启用；目前验证的是离线接入契约，
+真实模型适配、调用计数与语义质量评测仍待完成，不能据此宣称基线中的误放行已解决。
 
 ## 第 3 天：从一个工具扩展到两个工具（进行中）
 
@@ -185,7 +249,7 @@ python -m venv .venv
 
 ## Agent 批量任务评测
 
-默认命令使用固定时间和本地虚构数据，让 6 条问题真实经过 LangGraph、工具节点和
+默认命令使用固定时间和本地虚构数据，让 7 条问题真实经过 LangGraph、工具节点和
 人工确认中断；它不连接 Docker，也不请求外部模型：
 
 ```powershell

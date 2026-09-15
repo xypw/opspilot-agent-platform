@@ -13,7 +13,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 RUN useradd --create-home --uid 10001 opspilot \
-    && chown -R opspilot:opspilot /app
+    && mkdir -p /home/opspilot/.cache/fastembed \
+    && chown -R opspilot:opspilot /app /home/opspilot/.cache
 
 USER opspilot
 

@@ -6,7 +6,9 @@ from unittest.mock import patch
 
 import httpx
 
-from preview_tool_call import API_URL, extract_tool_preview, load_api_key, request_tool_call
+from preview_tool_call import (
+    API_URL, build_initial_messages, extract_tool_preview, load_api_key, request_tool_call,
+)
 from tool_schema import (
     CHECK_RETURN_ELIGIBILITY_TOOL,
     QUERY_ORDER_TOOL,
@@ -29,6 +31,14 @@ def sample_message():
 
 
 class ToolPreviewTests(unittest.TestCase):
+    def test_general_refund_question_routes_to_knowledge_without_order_id(self):
+        messages = build_initial_messages("我应该怎么退款")
+        instruction = messages[0]["content"]
+
+        self.assertIn("必须先使用 search_knowledge_base，不需要订单编号", instruction)
+        self.assertIn("只有查询某个具体订单、工单或退货资格", instruction)
+        self.assertEqual(messages[1], {"role": "user", "content": "我应该怎么退款"})
+
     def test_schema_requires_string_ticket_id(self):
         parameters = QUERY_TICKET_TOOL["function"]["parameters"]
         self.assertEqual(parameters["required"], ["ticket_id"])

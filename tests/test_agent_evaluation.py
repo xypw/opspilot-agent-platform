@@ -63,6 +63,24 @@ class AgentEvaluationTests(unittest.TestCase):
         )
         self.assertFalse(is_task_successful(self.case, response))
 
+    def test_forbidden_answer_text_detects_unsupported_claim(self):
+        case = AgentEvaluationCase(
+            case_id="refund-how-to-unsupported",
+            question="我应该怎么退款",
+            expected_tools=["search_knowledge_base"],
+            answer_must_contain=["没有找到足够证据"],
+            answer_must_not_contain=["三个工作日", "来源："],
+        )
+        response = build_response(
+            tools=["search_knowledge_base"],
+            answer="没有找到足够证据，但退款三个工作日到账。\n来源：《售后与退款制度》第2页",
+        )
+
+        self.assertFalse(is_task_successful(case, response))
+        self.assertEqual(
+            collect_failure_reasons(case, response), ["forbidden_answer_text"]
+        )
+
     def test_successful_response_has_no_failure_reasons(self):
         response = build_response(
             tools=["query_order", "search_knowledge_base"],

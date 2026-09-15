@@ -7,6 +7,8 @@ from retrieval_evaluation import (
     calculate_recall_at_k,
     compare_retrievers,
     evaluate_retriever,
+    extract_context_chunk_ids,
+    find_context_drops,
 )
 
 
@@ -62,6 +64,49 @@ class RetrievalEvaluationTests(unittest.TestCase):
         self.assertEqual(summary["recall_at_k"], 1.0)
         self.assertEqual(summary["mrr_at_k"], 1.0)
         self.assertEqual(summary["runs"][0]["case_id"], "refund")
+
+    def test_context_drop_diagnostic_distinguishes_pipeline_stages(self):
+        runs = [
+            {
+                "case_id": "lost-after-retrieval",
+                "expected_chunk_id": "urgent-refund",
+                "candidate_chunk_ids": ["urgent-refund", "normal-refund"],
+                "context_chunk_ids": ["normal-refund"],
+            },
+            {
+                "case_id": "never-retrieved",
+                "expected_chunk_id": "invoice",
+                "candidate_chunk_ids": ["normal-refund"],
+                "context_chunk_ids": ["normal-refund"],
+            },
+            {
+                "case_id": "kept-for-model",
+                "expected_chunk_id": "normal-refund",
+                "candidate_chunk_ids": ["normal-refund"],
+                "context_chunk_ids": ["normal-refund"],
+            },
+        ]
+
+        self.assertEqual(find_context_drops(runs), ["lost-after-retrieval"])
+
+    def test_context_drop_diagnostic_rejects_missing_stage_trace(self):
+        with self.assertRaisesRegex(ValueError, "context_chunk_ids"):
+            find_context_drops([{
+                "case_id": "missing-context",
+                "expected_chunk_id": "refund",
+                "candidate_chunk_ids": ["refund"],
+            }])
+
+    def test_context_ids_come_from_the_model_bound_tool_message(self):
+        message = {
+            "role": "tool",
+            "content": '[{"chunk_id": "refund-1", "content": "审核通过后到账"}]',
+        }
+        self.assertEqual(extract_context_chunk_ids(message), ["refund-1"])
+
+    def test_context_ids_reject_malformed_tool_message(self):
+        with self.assertRaisesRegex(ValueError, "有效 JSON"):
+            extract_context_chunk_ids({"role": "tool", "content": "not-json"})
 
     def test_comparison_shows_hybrid_and_rerank_can_improve_a_bad_semantic_rank(self):
         records = [

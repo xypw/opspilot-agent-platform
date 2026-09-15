@@ -1,6 +1,9 @@
 """RAG 可靠性规则：没有知识库证据时不让模型猜测。"""
 
-NO_EVIDENCE_ANSWER = "知识库中没有找到足够证据，暂时无法可靠回答。"
+NO_EVIDENCE_ANSWER = (
+    "知识库中没有找到足够证据，暂时无法可靠回答。"
+    "你可以联系人工客服，或留言补充问题。"
+)
 
 
 def answer_when_evidence_is_missing(tool_name: str, result: object) -> str | None:

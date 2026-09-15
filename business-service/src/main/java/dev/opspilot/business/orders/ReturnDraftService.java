@@ -114,7 +114,10 @@ public class ReturnDraftService {
                 UUID.randomUUID().toString(), order.id(), order.product(), order.amountCents(),
                 "SUBMITTED", persistentNow());
         activeStore.save(draft);
-        return draft.application;
+        // 并发时唯一约束可能保留另一请求先写入的申请；响应必须读取真实落库结果。
+        var saved = find(activeStore, order.id(), draftId);
+        if (saved.application == null) throw new IllegalStateException("RETURN_APPLICATION_NOT_SAVED");
+        return saved.application;
     }
 
     public DraftResponse cancel(String orderId, String draftId) {

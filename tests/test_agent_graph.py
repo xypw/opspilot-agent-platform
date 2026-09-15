@@ -16,6 +16,7 @@ from agent_graph import (
     start_agent_graph,
 )
 from main import app
+from knowledge_base import KnowledgeStoreUnavailableError
 from pending_actions import PendingActionStore
 from tickets import TICKETS, query_ticket
 
@@ -163,6 +164,34 @@ class AgentGraphTests(unittest.TestCase):
         self.assertEqual(response.tool_name, "search_knowledge_base")
         self.assertIn("三个工作日", response.answer)
         self.assertIn("来源：《售后与退款制度》第2页", response.answer)
+
+    def test_refund_how_to_abstains_without_procedure_evidence(self):
+        response = self.start("我应该怎么退款")
+
+        self.assertEqual(response.status, "COMPLETED")
+        self.assertEqual(response.tool_name, "search_knowledge_base")
+        self.assertEqual(response.tool_result, [])
+        self.assertIn("没有找到足够证据", response.answer)
+        self.assertIn("人工客服", response.answer)
+        self.assertNotIn("来源：", response.answer)
+        self.assertEqual(response.simulated_model_requests, 1)
+
+    def test_knowledge_store_failure_is_reported_as_503_not_empty_evidence(self):
+        def unavailable_tool(tool_name, arguments_json):
+            raise KnowledgeStoreUnavailableError("数据库不可用")
+
+        graph = build_agent_graph(
+            self.store, ConfiguredAgentModelGateway(), tool_runner=unavailable_tool
+        )
+        with patch("main.AGENT_GRAPH", graph):
+            response = TestClient(app).post("/agent-graph/runs", json={
+                "thread_id": "database-failure-thread",
+                "message": "退款多久到账",
+                "mode": "mock",
+            })
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "知识库暂时无法检索文档"})
 
     def test_compound_question_runs_order_then_rag_and_returns_trace(self):
         response = self.start(

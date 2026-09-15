@@ -3,6 +3,9 @@ package dev.opspilot.business.orders;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.time.*;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -51,5 +54,39 @@ class PostgresReturnDraftIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM return_applications WHERE draft_id = ?::uuid",
                 Integer.class, draft.draftId())).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentServiceInstancesReturnTheSameApplication() throws Exception {
+        orderId = "IT-" + UUID.randomUUID();
+        var order = new OrderResponse(orderId, "delivered", "集成测试键盘",
+                LocalDate.now(clock).minusDays(1), 3555);
+        var draft = service.start(order);
+        var secondStore = new PostgresReturnDraftStore(jdbc, transactions, flyway);
+        var secondService = new ReturnDraftService(clock, eligibility, reviewer, secondStore);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> {
+                ready.countDown();
+                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("START_TIMEOUT");
+                return service.confirm(order, draft.draftId());
+            });
+            var second = pool.submit(() -> {
+                ready.countDown();
+                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("START_TIMEOUT");
+                return secondService.confirm(order, draft.draftId());
+            });
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(second.get(20, TimeUnit.SECONDS));
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM return_applications WHERE draft_id = ?::uuid",
+                    Integer.class, draft.draftId())).isEqualTo(1);
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
+        }
     }
 }

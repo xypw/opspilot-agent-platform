@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot · 售后工作台</title>
+  <link rel="stylesheet" href="/demo-assets/demo.css"><script src="/demo-assets/demo.js" defer></script>
+</head>
+<body>
+  <header><div><strong>OpsPilot</strong><span>售后与知识协作工作台</span></div><a href="/docs">接口文档 ↗</a></header>
+  <main>
+    <aside>
+      <p class="eyebrow">知识资料</p><h1>有依据地回答，<br>经确认再执行。</h1>
+      <p>上传企业制度后提问，或查询订单并发起退货。每项操作都能查看执行轨迹。</p>
+      <form id="upload-form" class="card">
+        <h2>上传 PDF</h2>
+        <label for="document-title">资料标题</label><input id="document-title" required maxlength="200" placeholder="例如：售后服务制度">
+        <label for="document-file">PDF 文件（最多 10 MB）</label><input id="document-file" type="file" accept=".pdf,application/pdf" required>
+        <button type="submit">上传资料</button><a href="/demo/sample-policy.pdf" download>下载虚构制度样例</a>
+        <p class="note">首次上传可能需要加载或下载本地向量模型。</p>
+      </form>
+      <p class="note">本机教学演示。模拟模式仅模拟模型，确认操作仍可能写入当前业务数据库；请使用虚构订单。当前服务未提供公开访问鉴权。</p>
+    </aside>
+    <section>
+      <form id="start-form" class="card">
+        <div class="section-title"><h2>发起任务</h2><span class="badge">需确认的操作不会自动执行</span></div>
+        <label for="message">你需要处理什么？</label>
+        <textarea id="message" rows="3" maxlength="1000" required placeholder="例如：退款多久到账？或：订单 O-2001 可以退货吗？"></textarea>
+        <div class="row"><label for="mode">模型模式</label><select id="mode"><option value="mock">模拟模式 · 无模型 API 费用</option><option value="live">真实模式 · 使用服务端模型配置</option></select><button type="submit">开始新任务</button></div>
+        <p class="note">真实模式会发送问题和工具返回内容给模型供应商，产生调用用量。</p>
+      </form>
+      <div class="card">
+        <form id="restore-form" class="row"><label for="thread-id">任务编号</label><input id="thread-id" maxlength="100" placeholder="粘贴编号恢复任务" required><button type="submit">读取状态</button></form>
+        <p class="note">刷新页面后按编号读取。恢复任务不会自动确认或重发写操作。</p>
+        <p id="notice" role="status" aria-live="polite"></p>
+        <div class="section-title"><h2>处理结果</h2><span id="status" class="badge">等待开始</span></div>
+        <p id="answer">发起任务后，回答、引用和后续操作会显示在这里。</p>
+        <div id="reason-panel" hidden><form id="reason-form">
+          <label for="reason">请补充退货原因</label><textarea id="reason" required maxlength="1000" rows="2"></textarea>
+          <label for="reason-code">原因分类</label><select id="reason-code"><option value="OTHER">其他</option><option value="QUALITY_ISSUE">质量问题</option><option value="PERSONAL_PREFERENCE">个人偏好</option></select>
+          <button type="submit">提交原因并继续</button>
+        </form></div>
+        <div id="approval-panel" class="approval" hidden><h3>请核对本次操作</h3><pre id="approval-details"></pre><button id="approve" type="button">确认执行以上操作</button><button id="cancel" type="button" class="secondary">取消本次操作</button></div>
+        <div id="stale-panel" hidden><p>旧确认已失效。刷新快照后，需要重新核对并确认。</p><button id="refresh-draft" type="button">读取新的确认快照</button></div>
+        <details><summary>工具执行轨迹</summary><pre id="trace">[]</pre></details>
+        <details><summary>业务结果与运行数据</summary><pre id="result">{}</pre></details>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

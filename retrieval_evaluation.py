@@ -4,6 +4,7 @@
 并返回带 ``chunk_id`` 的结果，它就能被放进同一套评测中比较。
 """
 
+import json
 from collections.abc import Callable
 
 from embedding_service import LocalEmbeddingService
@@ -13,6 +14,59 @@ from vector_search import semantic_search
 
 
 RetrievalFunction = Callable[[str, int], list[dict]]
+
+
+def extract_context_chunk_ids(tool_message: dict) -> list[str]:
+    """从即将发给模型的知识库工具消息中读取实际片段编号。"""
+    if not isinstance(tool_message, dict) or tool_message.get("role") != "tool":
+        raise ValueError("必须提供工具消息")
+    content = tool_message.get("content")
+    if not isinstance(content, str):
+        raise ValueError("工具消息内容必须是 JSON 字符串")
+    try:
+        chunks = json.loads(content)
+    except json.JSONDecodeError as error:
+        raise ValueError("工具消息内容不是有效 JSON") from error
+    if not isinstance(chunks, list):
+        raise ValueError("知识库工具消息内容必须是片段列表")
+    chunk_ids = []
+    for chunk in chunks:
+        chunk_id = chunk.get("chunk_id") if isinstance(chunk, dict) else None
+        if not isinstance(chunk_id, str) or not chunk_id.strip():
+            raise ValueError("每个知识片段都必须有非空 chunk_id")
+        chunk_ids.append(chunk_id)
+    return chunk_ids
+
+
+def find_context_drops(runs: list[dict]) -> list[str]:
+    """找出正确片段已进入候选集、却未进入模型上下文的用例。"""
+    if not isinstance(runs, list):
+        raise ValueError("runs 必须是列表")
+
+    dropped_case_ids = []
+    for run in runs:
+        if not isinstance(run, dict):
+            raise ValueError("每条 run 都必须是字典")
+        case_id = run.get("case_id")
+        expected_id = run.get("expected_chunk_id")
+        candidate_ids = run.get("candidate_chunk_ids")
+        context_ids = run.get("context_chunk_ids")
+        if not isinstance(case_id, str) or not case_id.strip():
+            raise ValueError("每条 run 都必须包含非空 case_id")
+        if not isinstance(expected_id, str) or not expected_id.strip():
+            raise ValueError("每条 run 都必须包含非空 expected_chunk_id")
+        for field_name, ids in (
+            ("candidate_chunk_ids", candidate_ids),
+            ("context_chunk_ids", context_ids),
+        ):
+            if not isinstance(ids, list) or any(
+                not isinstance(chunk_id, str) or not chunk_id.strip()
+                for chunk_id in ids
+            ):
+                raise ValueError(f"每条 run 都必须包含字符串列表 {field_name}")
+        if expected_id in candidate_ids and expected_id not in context_ids:
+            dropped_case_ids.append(case_id)
+    return dropped_case_ids
 
 
 def _validate_runs(runs: list[dict]) -> None:

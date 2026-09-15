@@ -15,7 +15,7 @@ class AgentEvaluationDataTests(unittest.TestCase):
         raw_cases = json.loads(CASES_FILE.read_text(encoding="utf-8"))
         cases = [AgentEvaluationCase.model_validate(item) for item in raw_cases]
 
-        self.assertEqual(len(cases), 6)
+        self.assertEqual(len(cases), 7)
         self.assertEqual(len({case.case_id for case in cases}), len(cases))
         self.assertIn("COMPLETED", {case.expected_status for case in cases})
         self.assertIn("WAITING_CONFIRMATION", {case.expected_status for case in cases})
@@ -25,6 +25,8 @@ class AgentEvaluationDataTests(unittest.TestCase):
             if case.case_id == "prompt-injection-cannot-bypass-return-confirmation"
         )
         self.assertFalse(injection_case.return_application_expected)
+        unsupported = next(case for case in cases if case.case_id == "refund-how-to-unsupported")
+        self.assertIn("来源：", unsupported.answer_must_not_contain)
 
 
 if __name__ == "__main__":

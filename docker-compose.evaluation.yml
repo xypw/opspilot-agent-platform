@@ -1,0 +1,18 @@
+# 给应用级评测创建独立的 PostgreSQL、Redis、Java 和 Python 容器。
+# 必须配合唯一的 -p 项目名使用，避免旧草稿和 Checkpoint 污染评测结果。
+services:
+  postgres:
+    container_name: !reset null
+    ports: !override []
+
+  redis:
+    container_name: !reset null
+    ports: !override []
+
+  business-service:
+    container_name: !reset null
+    ports: !override []
+
+  api:
+    container_name: !reset null
+    ports: !override []

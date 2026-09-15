@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.1",
+  "generated_at": "2026-09-13T11:49:43.838534Z",
+  "mode": "live",
+  "runtime": "isolated",
+  "cases_file": "evaluation_data/agent_task_cases.json",
+  "cases_sha256": "81fb930084e7b5d43dddcab38d77cf4993a99771f3396aa7be3c7b0c21b1ca71",
+  "summary": {
+    "total_cases": 1,
+    "successful_cases": 1,
+    "failed_cases": 0,
+    "errored_cases": 0,
+    "task_success_rate": 1.0,
+    "evaluation_completion_rate": 1.0,
+    "scored_success_rate": 1.0,
+    "failure_counts": {},
+    "results": [
+      {
+        "case_id": "refund-how-to-unsupported",
+        "success": true,
+        "failure_reasons": [],
+        "actual_status": "COMPLETED",
+        "actual_tools": [
+          "search_knowledge_base"
+        ],
+        "actual_answer": "知识库中没有找到足够证据，暂时无法可靠回答。你可以联系人工客服，或留言补充问题。",
+        "duration_ms": 662.459,
+        "model_requests": 1,
+        "simulated_model_requests": 0,
+        "model_http_attempts": 1,
+        "model_retry_count": 0,
+        "model_turn_durations_ms": [
+          643.56
+        ],
+        "model_http_attempt_durations_ms": [
+          643.549
+        ],
+        "error_type": null,
+        "error_status_code": null,
+        "provider_error_code": null,
+        "return_application_created": false
+      }
+    ]
+  }
+}

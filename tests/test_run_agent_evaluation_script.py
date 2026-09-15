@@ -36,7 +36,7 @@ class RunAgentEvaluationScriptTests(unittest.TestCase):
                 "evaluation_data/agent_task_cases.json",
             )
             self.assertRegex(saved_data["cases_sha256"], r"^[0-9a-f]{64}$")
-            self.assertEqual(saved_data["summary"]["successful_cases"], 6)
+            self.assertEqual(saved_data["summary"]["successful_cases"], 7)
 
     @patch("scripts.run_agent_evaluation.run_evaluation_cases")
     def test_runner_error_returns_nonzero_exit_code(self, mocked_run_cases):

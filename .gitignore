@@ -14,3 +14,4 @@ output/evaluation/current-agent-evaluation.json
 # Java 构建产物与本机依赖缓存，不进入项目源码。
 business-service/target/
 .maven-cache/
+tmp/

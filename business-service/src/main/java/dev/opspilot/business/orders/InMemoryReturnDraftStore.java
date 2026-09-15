@@ -3,6 +3,7 @@ package dev.opspilot.business.orders;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,12 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "opspilot.return-store.backend", havingValue = "memory", matchIfMissing = true)
 final class InMemoryReturnDraftStore implements ReturnDraftStore {
     private final Map<String, ReturnDraftState> byOrder = new HashMap<>();
+
+    @Override
+    public synchronized <T> T inTransaction(Function<ReturnDraftStore, T> operation) {
+        // 内存模式也要把“读取、判断、写入”作为一个整体串行化。
+        return operation.apply(this);
+    }
 
     @Override
     public synchronized Optional<ReturnDraftState> findByOrderId(String orderId) {

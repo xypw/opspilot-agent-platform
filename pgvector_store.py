@@ -30,12 +30,57 @@ class PostgresVectorStore:
     def _build_vector_literal(self, values: list[float]) -> str:
         """将 Python 数组转换成 pgvector 接受的文本，并检查维度。"""
         if len(values) != self._dimensions:
-            raise ValueError(f"查询向量必须是 {self._dimensions} 维")
+            raise ValueError(f"向量必须是 {self._dimensions} 维")
         try:
             normalized_values = [float(value) for value in values]
         except (TypeError, ValueError):
             raise ValueError("查询向量只能包含数字") from None
         return "[" + ",".join(str(value) for value in normalized_values) + "]"
+
+    def save_document(
+        self,
+        document_id: str,
+        title: str,
+        source_filename: str,
+        page_count: int,
+        chunks: list[dict],
+    ) -> int:
+        """先生成全部向量，再以一个事务保存文档和所有片段。"""
+        if any(not isinstance(value, str) or not value.strip()
+               for value in (document_id, title, source_filename)):
+            raise ValueError("文档编号、标题和来源文件名不能为空")
+        if not isinstance(page_count, int) or isinstance(page_count, bool) or page_count < 1:
+            raise ValueError("page_count 必须是正整数")
+        if not isinstance(chunks, list) or not chunks:
+            raise ValueError("至少需要一个知识片段")
+        for chunk in chunks:
+            if not isinstance(chunk, dict) or not isinstance(chunk.get("chunk_id"), str) \
+                    or not chunk["chunk_id"].strip() or not isinstance(chunk.get("content"), str) \
+                    or not chunk["content"].strip() or not isinstance(chunk.get("page"), int) \
+                    or isinstance(chunk["page"], bool) or not 1 <= chunk["page"] <= page_count:
+                raise ValueError("知识片段缺少有效编号、正文或页码")
+
+        vectors = self.embedding_service.embed_documents([chunk["content"] for chunk in chunks])
+        if len(vectors) != len(chunks):
+            raise ValueError("知识片段数量与向量数量不一致")
+        vector_literals = [self._build_vector_literal(vector) for vector in vectors]
+
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """INSERT INTO documents (id, title, source_filename, page_count)
+                       VALUES (%s, %s, %s, %s)""",
+                    (document_id, title, source_filename, page_count),
+                )
+                for index, (chunk, vector_literal) in enumerate(zip(chunks, vector_literals)):
+                    cursor.execute(
+                        """INSERT INTO knowledge_chunks
+                           (id, document_id, page, chunk_index, content, embedding)
+                           VALUES (%s, %s, %s, %s, %s, %s::vector)""",
+                        (chunk["chunk_id"], document_id, chunk["page"],
+                         index, chunk["content"], vector_literal),
+                    )
+        return len(chunks)
 
     def search(self, query: str, limit: int = 3) -> list[dict]:
         """按余弦相似度从高到低返回片段，且不把完整向量暴露给 API。"""
