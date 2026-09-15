@@ -30,6 +30,9 @@ jobs:
       - name: Run offline tests
         run: python -X utf8 -m unittest discover -s tests
 
+      - name: Run demo page tests
+        run: node --test static/demo.test.cjs
+
       - name: Generate current Agent evaluation report
         run: >-
           python -X utf8 scripts/run_agent_evaluation.py
@@ -42,3 +45,20 @@ jobs:
           python -X utf8 scripts/check_agent_regression.py
           --baseline output/evaluation/agent-evaluation-mock.json
           --current output/evaluation/current-agent-evaluation.json
+
+  java-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run Spring Boot tests
+        working-directory: business-service
+        run: mvn -B -ntp test
