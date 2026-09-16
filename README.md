@@ -115,7 +115,6 @@ mvn -B -ntp test
 - [架构说明](docs/architecture.md)
 - [简历证据索引](docs/resume-evidence.md)
 - [跨服务集成记录](reports/2026-09-13-integration.md)
-- [开发与教学历史](docs/development-notes.md)
 
 ## 当前边界
 
