@@ -11,6 +11,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from return_draft_client import ReturnOrderChanged
 from pydantic import ValidationError
+from redis.exceptions import RedisError
+from model_rate_limit import ModelRateLimitExceeded, ModelAdmissionUnavailable
 
 from auth import (
     AuthenticatedUser,
@@ -203,6 +205,27 @@ AGENT_GRAPH = build_agent_graph(
 def query_ticket(ticket_id: str) -> dict[str, str] | None:
     """FastAPI 的稳定查询入口；底层仓库由启动配置决定。"""
     return TICKET_REPOSITORY.get_by_id(ticket_id)
+
+
+@app.exception_handler(ModelRateLimitExceeded)
+async def model_rate_limit_handler(request: Request, error: ModelRateLimitExceeded):
+    return JSONResponse(status_code=429, headers={"Retry-After": str(error.retry_after)},
+                        content={"code": "MODEL_RATE_LIMITED", "detail": str(error)})
+
+
+@app.exception_handler(ModelAdmissionUnavailable)
+async def model_admission_unavailable_handler(request: Request, error: ModelAdmissionUnavailable):
+    return JSONResponse(status_code=503,
+                        content={"code": "MODEL_ADMISSION_UNAVAILABLE", "detail": str(error)})
+
+
+@app.exception_handler(RedisError)
+async def redis_unavailable_handler(request: Request, error: RedisError):
+    # 故障可能发生在业务写入之后；不能承诺未执行，也不能切换内存自动重放。
+    return JSONResponse(status_code=503, content={
+        "code": "STATE_STORE_UNAVAILABLE",
+        "detail": "执行状态暂不可读取，业务结果可能未知。请先查询原订单和草稿状态，勿重新创建申请。",
+    })
 
 
 @app.get("/health", summary="检查服务是否启动")

@@ -11,6 +11,7 @@ from time import perf_counter, sleep
 import httpx
 
 from preview_tool_call import ModelAPIError, request_message
+from model_rate_limit import ModelAdmissionError
 
 
 # 408/429/5xx 通常表示暂时性服务或网络问题；400、401、403 等配置/请求错误不重试。
@@ -64,6 +65,7 @@ def request_message_with_retry(
     try:
         for attempt in range(max_attempts):
             attempt_started_at = perf_counter()
+            sent = True
             try:
                 return request_message(
                     api_key,
@@ -72,19 +74,22 @@ def request_message_with_retry(
                     offer_tools=offer_tools,
                     response_format=response_format,
                 )
+            except ModelAdmissionError:
+                sent = False
+                raise
             except (httpx.RequestError, ModelAPIError) as error:
                 # 最后一次失败或不可恢复错误必须原样抛出，让 API 层返回明确状态。
                 if attempt == max_attempts - 1 or not is_retryable_error(error):
                     raise
-                # 只有真正进入下一次 HTTP 请求，才把本次失败记为一次重试。
-                metrics.retry_count += 1
                 delay(BASE_DELAY_SECONDS * (2 ** attempt))
             finally:
                 # 无论成功、失败还是响应格式错误，每次发出的 HTTP 请求都必须计数。
-                metrics.http_attempts += 1
-                metrics.attempt_durations_ms.append(
-                    round((perf_counter() - attempt_started_at) * 1000, 3)
-                )
+                if sent:
+                    metrics.http_attempts += 1
+                    metrics.retry_count += int(attempt > 0)
+                    metrics.attempt_durations_ms.append(
+                        round((perf_counter() - attempt_started_at) * 1000, 3)
+                    )
     finally:
         # 模型轮次总耗时包含 HTTP、解析和指数退避等待时间。
         metrics.duration_ms = round((perf_counter() - started_at) * 1000, 3)

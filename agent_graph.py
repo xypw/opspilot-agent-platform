@@ -275,6 +275,11 @@ class ConfiguredAgentModelGateway:
     ) -> tuple[str, dict] | None:
         """模拟明确的订单加政策问题；不声称具备真实模型规划能力。"""
         completed = {name for name, _ in observations}
+        required = required_tools(question)
+        if ("check_return_eligibility" in required
+                and "query_order" in completed and "check_return_eligibility" not in completed):
+            order_id = re.search(r"O-[0-9]{4}", question).group()
+            return "check_return_eligibility", {"order_id": order_id}
         if ("query_order" in completed and "search_knowledge_base" not in completed
                 and required_tools(question)):
             query = ("退款多久到账" if "退款" in question and "到账" in question
@@ -794,7 +799,7 @@ def _owned_snapshot(graph, user_id: str, thread_id: str):
         or snapshot.values.get("thread_id") != thread_id
     ):
         raise AgentGraphNotFoundError(
-            "Agent 工作流不存在、从未启动，或不属于当前用户。"
+            "Agent 工作流不存在、从未启动、已过期或不属于当前用户。请先查询原订单和草稿状态，不能凭旧确认重建申请。"
         )
     return snapshot
 

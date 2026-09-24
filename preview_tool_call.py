@@ -7,6 +7,7 @@ import httpx
 from dotenv import dotenv_values
 
 from tool_schema import TOOLS
+from model_rate_limit import acquire_model_request
 
 API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 MODEL = "glm-4.7-flash"  # 不允许环境配置自动替换为付费模型。
@@ -80,6 +81,7 @@ def request_message(
         payload["tool_choice"] = "auto"
     if response_format is not None:
         payload["response_format"] = response_format
+    acquire_model_request()
     response = client.post(
         API_URL,
         headers={"Authorization": f"Bearer {api_key}"},

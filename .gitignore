@@ -15,3 +15,6 @@ output/evaluation/current-agent-evaluation.json
 business-service/target/
 .maven-cache/
 tmp/
+# 本机协作约定和教学记录不属于公开项目交付。
+AGENTS.md
+LEARNING_PROGRESS.md

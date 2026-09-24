@@ -1,5 +1,7 @@
 # OpsPilot
 
+最近一次本机发布验收见 [2026-09-24 部署报告](reports/deployment-20260924.md)：应用更新、身份隔离、确认与幂等、真实 Redis 共享配额及窗口恢复均通过；本轮没有外部模型请求。
+
 [![CI](https://github.com/xypw/opspilot-agent-platform/actions/workflows/agent-evaluation.yml/badge.svg)](https://github.com/xypw/opspilot-agent-platform/actions/workflows/agent-evaluation.yml)
 [![Release](https://img.shields.io/github/v/release/xypw/opspilot-agent-platform)](https://github.com/xypw/opspilot-agent-platform/releases/tag/v1.0.0)
 
@@ -32,6 +34,7 @@ flowchart LR
 ```
 
 更完整的职责划分和请求链路见 [架构说明](docs/architecture.md)。
+双服务的成本、Redis 检查点与共享限流、政策冲突及评测口径见 [架构取舍与验证边界](docs/architecture-decisions.md)。
 
 ## 核心能力
 
@@ -69,6 +72,7 @@ flowchart LR
 
 ### 失败处理与评测
 
+- Redis Lua 统一控制多实例的模型请求配额，普通调用、证据审查和重试共用限额；超额阻断，Redis 故障不回退单机计数。已验证跨进程共享与过期恢复，详细条件见 [架构取舍](docs/architecture-decisions.md)。限流不是供应商 429 的消除保证。
 - 区分未找到、业务冲突、确认过期、上游数据异常和服务失败。
 - Agent 保存工具轨迹；知识检索、证据与 Java 业务结果可分别检查。
 - GitHub Actions 运行 Python、演示页和 Java Maven 测试。
