@@ -1,0 +1,198 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-17T05:17:41.431739+00:00",
+    "mode": "rules",
+    "cases_file": "evidence_holdout_cases.json",
+    "notes": [
+      "该数据集未参与当前确定性规则开发。",
+      "全部问题和政策片段均为虚构数据，不含个人信息。",
+      "rules 模式不调用外部模型；live-review 才调用本地配置的真实模型。"
+    ]
+  },
+  "evaluation": {
+    "case_count": 20,
+    "positive_cases": 10,
+    "negative_cases": 10,
+    "counts": {
+      "tp": 3,
+      "fn": 7,
+      "fp": 1,
+      "tn": 9
+    },
+    "false_rejection_rate": 0.7,
+    "false_admission_rate": 0.1,
+    "uncertain_cases": 10,
+    "reviewer_calls": 0,
+    "model_http_attempts": 0,
+    "results": [
+      {
+        "case_id": "h01_refund_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h02_refund_timing_colloquial",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h02"
+        ]
+      },
+      {
+        "case_id": "h03_invoice_destination_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h04_return_eligibility_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h05_payment_code_exact",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h05"
+        ]
+      },
+      {
+        "case_id": "h06_high_ticket_synonym",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h07_cancel_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h08_refund_destination_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h09_invoice_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h10_membership_expiry",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h10"
+        ]
+      },
+      {
+        "case_id": "h11_process_from_timing",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h12_invoice_destination_from_eligibility",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h13_wrong_payment_identifier",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h14_urgent_from_standard",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h15_return_from_warranty",
+        "expected_sufficient": false,
+        "gate_decision": "admit",
+        "predicted_sufficient": true,
+        "outcome": "fp",
+        "selected_chunk_ids": [
+          "h15"
+        ]
+      },
+      {
+        "case_id": "h16_timing_from_contact",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h17_process_from_status",
+        "expected_sufficient": false,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h18_destination_from_vague_status",
+        "expected_sufficient": false,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h19_eligibility_from_amount",
+        "expected_sufficient": false,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      },
+      {
+        "case_id": "h20_high_ticket_from_normal",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": []
+      }
+    ]
+  }
+}

@@ -2,15 +2,15 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OpsPilot · 售后工作台</title>
+  <title>OpsPilot · 售后 Agent</title>
   <link rel="stylesheet" href="/demo-assets/demo.css"><script src="/demo-assets/demo.js" defer></script>
 </head>
 <body>
-  <header><div><strong>OpsPilot</strong><span>售后与知识协作工作台</span></div><a href="/docs">接口文档 ↗</a></header>
+  <header><div><strong>OpsPilot</strong><span>售后咨询 Agent</span></div><a href="/service">直接办理售后 ↗</a></header>
   <main>
     <aside>
       <p class="eyebrow">知识资料</p><h1>有依据地回答，<br>经确认再执行。</h1>
-      <p>上传企业制度后提问，或查询订单并发起退货。每项操作都能查看执行轨迹。</p>
+      <p>提出包含订单与政策的售后问题，Agent 会按需查询订单和文档证据；可查看每步工具轨迹。固定办理步骤也可直接使用售后页面。</p>
       <form id="upload-form" class="card">
         <h2>上传 PDF</h2>
         <label for="document-title">资料标题</label><input id="document-title" required maxlength="200" placeholder="例如：售后服务制度">
@@ -18,13 +18,16 @@
         <button type="submit">上传资料</button><a href="/demo/sample-policy.pdf" download>下载虚构制度样例</a>
         <p class="note">首次上传可能需要加载或下载本地向量模型。</p>
       </form>
-      <p class="note">本机教学演示。模拟模式仅模拟模型，确认操作仍可能写入当前业务数据库；请使用虚构订单。当前服务未提供公开访问鉴权。</p>
+      <p class="note">模拟模式仅模拟模型，确认操作仍可能写入当前业务数据库；请使用虚构订单。部署模式要求访问令牌，令牌只保存在当前浏览器标签页。</p>
     </aside>
     <section>
       <form id="start-form" class="card">
         <div class="section-title"><h2>发起任务</h2><span class="badge">需确认的操作不会自动执行</span></div>
+        <label for="access-token">演示访问令牌</label>
+        <input id="access-token" type="password" autocomplete="off"
+               placeholder="仅保存在当前浏览器标签页">
         <label for="message">你需要处理什么？</label>
-        <textarea id="message" rows="3" maxlength="1000" required placeholder="例如：退款多久到账？或：订单 O-2001 可以退货吗？"></textarea>
+        <textarea id="message" rows="3" maxlength="1000" required placeholder="例如：结合订单 O-2001，退款多久到账？"></textarea>
         <div class="row"><label for="mode">模型模式</label><select id="mode"><option value="mock">模拟模式 · 无模型 API 费用</option><option value="live">真实模式 · 使用服务端模型配置</option></select><button type="submit">开始新任务</button></div>
         <p class="note">真实模式会发送问题和工具返回内容给模型供应商，产生调用用量。</p>
       </form>

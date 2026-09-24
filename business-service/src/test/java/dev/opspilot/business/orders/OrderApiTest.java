@@ -16,7 +16,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
 /** 使用随机端口启动真实 HTTP 服务，不占用正在演示的 8081 端口。 */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "opspilot.auth.required=false")
 @Import(OrderApiTest.FixedClockConfig.class)
 class OrderApiTest {
     @TestConfiguration

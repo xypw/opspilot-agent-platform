@@ -15,7 +15,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** 连接真实 PostgreSQL；默认测试不运行，CI 或本地联调时显式开启。 */
-@SpringBootTest(properties = "opspilot.return-store.backend=postgres")
+@SpringBootTest(properties = {
+        "opspilot.return-store.backend=postgres",
+        "opspilot.auth.required=false"
+})
 @EnabledIfEnvironmentVariable(named = "RUN_POSTGRES_INTEGRATION", matches = "true")
 class PostgresReturnDraftIntegrationTest {
     @Autowired ReturnDraftService service;

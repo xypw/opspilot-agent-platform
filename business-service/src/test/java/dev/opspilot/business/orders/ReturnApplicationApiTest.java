@@ -11,7 +11,8 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.*;
 import org.springframework.test.annotation.DirtiesContext;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "opspilot.auth.required=false")
 @Import(ReturnApplicationApiTest.Config.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class ReturnApplicationApiTest {

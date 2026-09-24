@@ -44,6 +44,7 @@ def request_message_with_retry(
     messages: list[dict],
     *,
     offer_tools: bool = True,
+    response_format: dict | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     sleeper: Callable[[float], None] | None = None,
     telemetry: ModelRequestTelemetry | None = None,
@@ -64,7 +65,13 @@ def request_message_with_retry(
         for attempt in range(max_attempts):
             attempt_started_at = perf_counter()
             try:
-                return request_message(api_key, client, messages, offer_tools=offer_tools)
+                return request_message(
+                    api_key,
+                    client,
+                    messages,
+                    offer_tools=offer_tools,
+                    response_format=response_format,
+                )
             except (httpx.RequestError, ModelAPIError) as error:
                 # 最后一次失败或不可恢复错误必须原样抛出，让 API 层返回明确状态。
                 if attempt == max_attempts - 1 or not is_retryable_error(error):

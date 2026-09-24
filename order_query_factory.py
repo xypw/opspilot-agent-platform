@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import httpx
 from dotenv import dotenv_values
 
+from auth import current_authorization_header
 from order_service_client import JavaOrderClient
 from return_review_client import review_return, ReasonCode
 
@@ -65,6 +66,7 @@ class ConfiguredJavaOrderQuery:
             timeout=httpx.Timeout(2.0),
             trust_env=False,
             follow_redirects=False,
+            headers=current_authorization_header(),
         ) as http:
             return JavaOrderClient(http).get_by_id(order_id)
 
@@ -75,12 +77,14 @@ class ConfiguredJavaOrderQuery:
             timeout=httpx.Timeout(2.0),
             trust_env=False,
             follow_redirects=False,
+            headers=current_authorization_header(),
         ) as http:
             return JavaOrderClient(http).get_return_eligibility(order_id)
 
     def review_return(self, order_id: str, reason: str, code: ReasonCode) -> dict:
         with httpx.Client(base_url=self.service_url, timeout=httpx.Timeout(2.0),
-                          trust_env=False, follow_redirects=False) as http:
+                          trust_env=False, follow_redirects=False,
+                          headers=current_authorization_header()) as http:
             return review_return(http, order_id, reason, code)
 
 

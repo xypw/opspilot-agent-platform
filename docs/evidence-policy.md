@@ -1,0 +1,23 @@
+# 证据准入设计
+
+售后回答需要核对业务主题和用户具体问的事实。只发现“可以”“三天”或“邮箱”等词，不能说明片段可以回答问题。
+
+`evidence_support.py` 使用同一函数产生 `admit`、`uncertain` 和 `reject`，离线过滤只返回 `admit`；真实模型模式复核 `admit` 和 `uncertain`。未知主题、未知问题类型或缺少部分事实不能直接放行。每例报告保存判定理由和所需、已识别的事实类型。
+
+业务词表覆盖退款、退货、发票、工单等已有场景中的常见改写。工单域约定“紧急级别”和“高优先级”同义；退款的紧急与普通等级单独匹配。该约定只在当前演示业务内成立，接入其他业务时需要替换词表与对应验收案例。
+
+候选按句子分段，逗号后出现新的业务主题、业务编号或等级时开启新的范围；省略主语的续句保留上文范围。所需编号必须在原文出现。只有范围一致的语句才能贡献时间、去向、含义、流程或资格条件，复合问题要求所有已识别的事实类型都被满足。全句包含不同业务且无法明确归属时交给语义复核。
+
+这些规则是有界的领域规则，不能证明任意自然语言的语义蕴含。涉及否定、跨段指代或未收录表达时仍可能误判，需要保留语义审查、逐字引文验证和新的外部未见数据评测。
+
+## 可复现回归
+
+使用项目虚拟环境，隔离 Redis 和数据库后运行：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m unittest tests.test_evidence_policy_regression
+.\.venv\Scripts\python.exe -X utf8 scripts/evaluate_evidence_holdout.py --mode rules --output reports/<新的报告名>.json
+.\.venv\Scripts\python.exe -X utf8 scripts/evaluate_evidence_holdout.py --mode rules --cases evaluation_data/evidence_boundary_cases_v3.json --output reports/<另一个新报告名>.json
+```
+
+默认报告标签为 `regression`。已看过并用于修改实现的样本不能继续称为未见集；`--dataset-role holdout` 只用于有独立冻结来源且未参与本轮开发的数据。旧报告保留原貌，避免将历史真实模型结果解释为新版模型验收。

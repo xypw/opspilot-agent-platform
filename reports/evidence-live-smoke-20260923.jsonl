@@ -1,0 +1,1 @@
+{"case_id": "h01_refund_process_paraphrase", "expected_sufficient": true, "gate_decision": "uncertain", "predicted_sufficient": false, "outcome": "fn", "selected_chunk_ids": [], "review_verdict": null, "error": {"type": "ModelAPIError", "status_code": 429}, "model_http_attempts": 3, "duration_ms": 1472.791}

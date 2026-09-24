@@ -31,7 +31,7 @@ from evaluation_report import (  # noqa: E402
 )
 
 
-DEFAULT_CASES_FILE = PROJECT_ROOT / "evaluation_data" / "agent_task_cases.json"
+DEFAULT_CASES_FILE = PROJECT_ROOT / "evaluation_data" / "agent_task_cases_v2.json"
 
 
 def build_report_cases_file(cases_path: Path) -> str:

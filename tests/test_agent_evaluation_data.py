@@ -7,7 +7,7 @@ import unittest
 from agent_evaluation import AgentEvaluationCase
 
 
-CASES_FILE = Path(__file__).parents[1] / "evaluation_data" / "agent_task_cases.json"
+CASES_FILE = Path(__file__).parents[1] / "evaluation_data" / "agent_task_cases_v2.json"
 
 
 class AgentEvaluationDataTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class AgentEvaluationDataTests(unittest.TestCase):
         raw_cases = json.loads(CASES_FILE.read_text(encoding="utf-8"))
         cases = [AgentEvaluationCase.model_validate(item) for item in raw_cases]
 
-        self.assertEqual(len(cases), 7)
+        self.assertEqual(len(cases), 8)
         self.assertEqual(len({case.case_id for case in cases}), len(cases))
         self.assertIn("COMPLETED", {case.expected_status for case in cases})
         self.assertIn("WAITING_CONFIRMATION", {case.expected_status for case in cases})

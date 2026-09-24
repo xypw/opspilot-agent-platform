@@ -1,0 +1,418 @@
+[
+  {
+    "case_id": "b01_refund_steps",
+    "question": "退钱要怎么操作？",
+    "candidate": {
+      "chunk_id": "b01",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "从订单列表进入售后页面，发起退款请求并补全原因。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "常见同义词与明确操作"
+  },
+  {
+    "case_id": "b02_refund_account",
+    "question": "款项返还到哪个账户？",
+    "candidate": {
+      "chunk_id": "b02",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款将退回原银行卡。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "账户去向"
+  },
+  {
+    "case_id": "b03_invoice_mailbox",
+    "question": "发票会送到哪儿？",
+    "candidate": {
+      "chunk_id": "b03",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "电子发票投递至预留电子信箱。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "信箱同义表达"
+  },
+  {
+    "case_id": "b04_return_right",
+    "question": "我刚签收商品，可以退吗？",
+    "candidate": {
+      "chunk_id": "b04",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "商品签收七日内有权申请退货。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "商品语境中的退指退货"
+  },
+  {
+    "case_id": "b05_ticket_priority",
+    "question": "紧急工单何时响应？",
+    "candidate": {
+      "chunk_id": "b05",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "高优先级工单在三十分钟内首次响应。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "项目工单等级词表定义同义等级"
+  },
+  {
+    "case_id": "b06_standard_ticket",
+    "question": "普通工单多长时间响应？",
+    "candidate": {
+      "chunk_id": "b06",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "普通优先级工单在一个工作日内响应。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "普通等级保持一致"
+  },
+  {
+    "case_id": "b07_cancel_steps",
+    "question": "待发货的订单该怎样撤销？",
+    "candidate": {
+      "chunk_id": "b07",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "请在待发货订单详情发起撤销请求并确认。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "取消订单同义动作"
+  },
+  {
+    "case_id": "b08_invoice_steps",
+    "question": "票据如何申请？",
+    "candidate": {
+      "chunk_id": "b08",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "在开票入口申请电子发票，补全购买方抬头后确认。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "开票入口与填写信息"
+  },
+  {
+    "case_id": "b09_refund_days",
+    "question": "退款什么时候到账？",
+    "candidate": {
+      "chunk_id": "b09",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款款项在两日内退回。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "日与天的时间单位"
+  },
+  {
+    "case_id": "b10_refund_two_requirements",
+    "question": "退款需要多久，退到哪里？",
+    "candidate": {
+      "chunk_id": "b10",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款在三日内返还至原付款账户。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "同一主题同时提供时间与去向"
+  },
+  {
+    "case_id": "b11_identifier_meaning",
+    "question": "PAYMENT_207 是什么意思？",
+    "candidate": {
+      "chunk_id": "b11",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "PAYMENT_207 指的是支付请求重复。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "未使用旧评测的业务编号"
+  },
+  {
+    "case_id": "b12_points_expiry",
+    "question": "积分哪日过期？",
+    "candidate": {
+      "chunk_id": "b12",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "会员积分在十二个月后失效。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "哪日提问需要时间事实"
+  },
+  {
+    "case_id": "b13_return_allowed",
+    "question": "签收商品后可否退货？",
+    "candidate": {
+      "chunk_id": "b13",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "收货七日内允许申请无理由退货。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "可否与允许"
+  },
+  {
+    "case_id": "b14_refund_web_steps",
+    "question": "怎么在线办理退款？",
+    "candidate": {
+      "chunk_id": "b14",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "登录账户后在售后入口发起退款申请，再补全原因。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "操作序列"
+  },
+  {
+    "case_id": "b15_return_counter",
+    "question": "退货怎么办理？",
+    "candidate": {
+      "chunk_id": "b15",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "请携带商品与订单号到服务台申请退货。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "线下办理步骤"
+  },
+  {
+    "case_id": "b16_refund_policy_sentence",
+    "question": "退款多久到账？",
+    "candidate": {
+      "chunk_id": "b16",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款政策：款项审核通过后两个工作日原路到账。",
+      "score": 0.9
+    },
+    "sufficient": true,
+    "rationale": "主题与事实处于同一语句"
+  },
+  {
+    "case_id": "b17_return_from_warranty",
+    "question": "我刚签收商品，可以退吗？",
+    "candidate": {
+      "chunk_id": "b17",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "商品故障时可以申请两年保修。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "同资格词但业务主题不同"
+  },
+  {
+    "case_id": "b18_refund_steps_from_other_sentence",
+    "question": "退款怎么操作？",
+    "candidate": {
+      "chunk_id": "b18",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款请求已经受理。维修需要打开工单页面提交故障记录。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "不能借用相邻主题的操作"
+  },
+  {
+    "case_id": "b19_refund_time_from_delivery",
+    "question": "退款多久能到账？",
+    "candidate": {
+      "chunk_id": "b19",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款仍在处理。快递会在两天内送达。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "不能借用物流时效"
+  },
+  {
+    "case_id": "b20_refund_time_from_payment",
+    "question": "退款什么时候到账？",
+    "candidate": {
+      "chunk_id": "b20",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "支付成功后三天快递送达。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "时间明确但属于物流"
+  },
+  {
+    "case_id": "b21_refund_unknown_time",
+    "question": "退款什么时候到账？",
+    "candidate": {
+      "chunk_id": "b21",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款到账日期尚未确定。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "没有明确到账时间"
+  },
+  {
+    "case_id": "b22_invoice_wrong_topic",
+    "question": "电子发票会送到哪儿？",
+    "candidate": {
+      "chunk_id": "b22",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款将退回原银行卡。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "去向明确但属于退款"
+  },
+  {
+    "case_id": "b23_refund_missing_destination",
+    "question": "退款需要多久，退到哪里？",
+    "candidate": {
+      "chunk_id": "b23",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款将在三天内到账。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "只满足复合问题的一部分"
+  },
+  {
+    "case_id": "b24_refund_destination_from_invoice",
+    "question": "退款退到哪里？",
+    "candidate": {
+      "chunk_id": "b24",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款正在处理。电子发票发至邮箱。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "不能借用相邻主题的去向"
+  },
+  {
+    "case_id": "b25_ticket_missing_priority",
+    "question": "高优先级工单多久响应？",
+    "candidate": {
+      "chunk_id": "b25",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "工单一个小时内响应。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "没有对应等级的服务承诺"
+  },
+  {
+    "case_id": "b26_refund_wrong_priority",
+    "question": "紧急退款什么时候到账？",
+    "candidate": {
+      "chunk_id": "b26",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "普通退款在两天内到账。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "业务等级冲突"
+  },
+  {
+    "case_id": "b27_identifier_other_sentence",
+    "question": "PAYMENT_207 是什么意思？",
+    "candidate": {
+      "chunk_id": "b27",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "PAYMENT_207 正在排查。PAYMENT_500 表示支付服务不可用。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "对应标识没有释义，另一标识的释义不可借用"
+  },
+  {
+    "case_id": "b28_refund_historical_action",
+    "question": "退款怎么操作？",
+    "candidate": {
+      "chunk_id": "b28",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款请求已发起，补充材料后两个工作日到账。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "已发生状态不能充当操作指南"
+  },
+  {
+    "case_id": "b29_refund_post_submission",
+    "question": "退款怎么操作？",
+    "candidate": {
+      "chunk_id": "b29",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "客户发起退款请求后，款项会在三个工作日到账。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "申请后的时效不是申请方法"
+  },
+  {
+    "case_id": "b30_unknown_question",
+    "question": "能给我推荐餐馆吗？",
+    "candidate": {
+      "chunk_id": "b30",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款三个工作日到账。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "未识别主题不能默认放行"
+  },
+  {
+    "case_id": "b31_refund_unspecified_policy",
+    "question": "退款多久到账？",
+    "candidate": {
+      "chunk_id": "b31",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退款政策尚未明确到账时间。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "提及时间并未提供时间"
+  },
+  {
+    "case_id": "b32_return_with_warranty_condition",
+    "question": "签收商品后可否退货？",
+    "candidate": {
+      "chunk_id": "b32",
+      "title": "新增边界回归",
+      "page": 1,
+      "content": "退货请查帮助，保修可以申请两年。",
+      "score": 0.9
+    },
+    "sufficient": false,
+    "rationale": "同句多业务的资格不能串用"
+  }
+]

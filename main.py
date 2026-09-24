@@ -1,17 +1,24 @@
-"""OpsPilot API：文档入库、Agent 聊天、查询与高风险操作确认。"""
+"""OpsPilot API：证据问答、显式售后业务接口与历史 Agent 演示。"""
 
 from io import BytesIO
 from pathlib import Path
 
 import httpx
 import tool_executor
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from return_draft_client import ReturnOrderChanged
 from pydantic import ValidationError
 
+from auth import (
+    AuthenticatedUser,
+    authenticate_request,
+    auth_required,
+    bind_authenticated_user,
+    require_role,
+)
 from chat_models import ChatRequest, ChatResponse
 from chat_service import ChatConfigurationError, MockInputError, chat, run_mock_chat
 from agent_graph import (
@@ -41,17 +48,20 @@ from checkpoint_store import (
 from document_ingestion import ingest_pdf
 from document_models import DocumentIngestionResponse
 from document_parser import PDFNeedsOCRError
+from evidence_review import ConfiguredEvidenceReviewer
 from knowledge_base import (
     DuplicateDocumentError,
     KnowledgeStoreUnavailableError,
     index_uploaded_document,
     search_knowledge_base,
+    search_knowledge_candidates,
 )
 from knowledge_models import KnowledgeSearchRequest, KnowledgeSearchResult
 from langgraph_checkpointer import build_agent_checkpointer
 from order_query_factory import build_order_query, build_return_eligibility_query
 from order_service_client import OrderServiceError
 from return_draft_client import JavaReturnDraftGateway
+from service_api import build_service_router
 from order_query_factory import load_order_service_url
 from orders import query_order
 from pending_actions import (
@@ -74,8 +84,8 @@ from runtime_store_factory import build_runtime_stores
 from tool_args import RequestPriorityChangeArgs
 
 app = FastAPI(
-    title="OpsPilot 企业知识库与智能工单 Agent",
-    description="POST /chat 支持查询及创建优先级修改申请；写操作必须另行确认。默认 mock，live 才请求真实模型。仅供本机教学。",
+    title="OpsPilot 售后知识与业务服务",
+    description="/service 提供证据式知识问答、订单与退货接口；历史 Agent 图保留为实验入口。",
     version="0.1.0",
 )
 
@@ -84,9 +94,52 @@ _PROJECT_DIR = Path(__file__).resolve().parent
 app.mount("/demo-assets", StaticFiles(directory=_PROJECT_DIR / "static"), name="demo-assets")
 
 
+_PUBLIC_PATHS = {"/health", "/demo", "/service", "/demo/sample-policy.pdf", "/openapi.json", "/docs", "/redoc"}
+_LEGACY_API_PREFIXES = (
+    "/actions/",
+    "/agent/runs",
+    "/workflows/priority-changes",
+    "/chat",
+    "/tickets/",
+    "/orders/",
+)
+
+
+@app.middleware("http")
+async def enforce_authentication(request: Request, call_next):
+    """部署模式统一保护 API；文档和本机演示页面保持可访问。"""
+    path = request.url.path
+    if (
+        not auth_required()
+        or path in _PUBLIC_PATHS
+        or path.startswith("/demo-assets/")
+        or path.startswith("/docs/")
+        or path.startswith("/redoc/")
+    ):
+        return await call_next(request)
+    if any(path == prefix.rstrip("/") or path.startswith(prefix)
+           for prefix in _LEGACY_API_PREFIXES):
+        return JSONResponse(
+            status_code=410,
+            content={"detail": "部署模式已关闭旧教学接口，请使用 /agent-graph/runs。"},
+        )
+    try:
+        user = authenticate_request(request)
+    except HTTPException as error:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+    request.state.authenticated_user = user
+    with bind_authenticated_user(user):
+        return await call_next(request)
+
+
 @app.get("/demo", include_in_schema=False)
 def demo_page():
     return FileResponse(_PROJECT_DIR / "static" / "demo.html")
+
+
+@app.get("/service", include_in_schema=False)
+def service_page():
+    return FileResponse(_PROJECT_DIR / "static" / "service.html")
 
 
 @app.get("/demo/sample-policy.pdf", include_in_schema=False)
@@ -124,11 +177,26 @@ PRIORITY_CHANGE_GRAPH = build_priority_change_graph(ACTION_STORE)
 # Agent 图使用独立 Checkpointer；避免与旧教学图共用同一个 thread_id 命名空间。
 AGENT_CHECKPOINTER = build_agent_checkpointer()
 RETURN_DRAFT_GATEWAY = JavaReturnDraftGateway(load_order_service_url())
+app.include_router(build_service_router(
+    order_query=tool_executor.ORDER_QUERY,
+    eligibility_query=tool_executor.RETURN_ELIGIBILITY_QUERY,
+    draft_gateway=RETURN_DRAFT_GATEWAY,
+    evidence_reviewer=ConfiguredEvidenceReviewer(),
+))
+AGENT_TOOL_EXECUTOR = tool_executor.ConfiguredToolExecutor(
+    ticket_repository=TICKET_REPOSITORY,
+    order_query=tool_executor.ORDER_QUERY,
+    return_eligibility_query=tool_executor.RETURN_ELIGIBILITY_QUERY,
+    knowledge_search=search_knowledge_candidates,
+    action_store=ACTION_STORE,
+)
 AGENT_GRAPH = build_agent_graph(
     ACTION_STORE,
     ConfiguredAgentModelGateway(),
     checkpointer=AGENT_CHECKPOINTER,
     draft_gateway=RETURN_DRAFT_GATEWAY,
+    tool_runner=AGENT_TOOL_EXECUTOR.execute,
+    evidence_reviewer=ConfiguredEvidenceReviewer(),
 )
 
 
@@ -159,7 +227,9 @@ async def upload_document(
     file: UploadFile = File(description="不超过 10 MB 的 PDF 文件"),
     document_id: str = Form(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$"),
     title: str = Form(min_length=1, max_length=200),
+    user: AuthenticatedUser = Depends(authenticate_request),
 ) -> dict:
+    require_role(user, "knowledge_admin")
     filename = file.filename or ""
     if file.content_type != "application/pdf" or not filename.lower().endswith(".pdf"):
         await file.close()
@@ -379,10 +449,14 @@ def resume_priority_change_graph(
         503: {"description": "真实模型配置不可用"},
     },
 )
-def start_langgraph_agent(request: AgentGraphStartRequest) -> AgentGraphResponse:
+def start_langgraph_agent(
+    request: AgentGraphStartRequest,
+    user: AuthenticatedUser = Depends(authenticate_request),
+) -> AgentGraphResponse:
     """模型只选择工具；LangGraph 根据工具类型执行查询或暂停等待确认。"""
     try:
-        return start_agent_graph(AGENT_GRAPH, request)
+        with bind_authenticated_user(user):
+            return start_agent_graph(AGENT_GRAPH, request, user.user_id)
     except AgentGraphStateError as error:
         raise HTTPException(status_code=409, detail=str(error)) from None
     except AgentGraphInputError as error:
@@ -393,6 +467,14 @@ def start_langgraph_agent(request: AgentGraphStartRequest) -> AgentGraphResponse
         raise HTTPException(status_code=503, detail=str(error)) from None
     except KnowledgeStoreUnavailableError:
         raise HTTPException(status_code=503, detail="知识库暂时无法检索文档") from None
+    except ModelAPIError as error:
+        if error.status_code in (401, 403, 429):
+            raise HTTPException(status_code=503, detail="真实模型凭据、权限或配额不可用。") from None
+        raise HTTPException(status_code=502, detail="上游模型请求失败，本次流程未完成。") from None
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="模型请求超时，本次流程未完成。") from None
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="无法完成模型网络请求，本次流程未完成。") from None
     except TicketNotFoundError as error:
         # 工具参数合法但目标工单不存在，属于业务资源不存在而不是模型服务故障。
         raise HTTPException(status_code=404, detail=str(error)) from None
@@ -407,10 +489,16 @@ def start_langgraph_agent(request: AgentGraphStartRequest) -> AgentGraphResponse
     summary="读取 LangGraph Agent 当前状态",
     responses={404: {"description": "Agent 工作流不存在"}},
 )
-def get_langgraph_agent(thread_id: str) -> AgentGraphResponse:
+def get_langgraph_agent(
+    thread_id: str,
+    user: AuthenticatedUser = Depends(authenticate_request),
+) -> AgentGraphResponse:
     """页面刷新后无需重跑模型，可按 thread_id 读取当前 Checkpoint。"""
     try:
-        return get_agent_graph_state(AGENT_GRAPH, thread_id, RETURN_DRAFT_GATEWAY)
+        with bind_authenticated_user(user):
+            return get_agent_graph_state(
+                AGENT_GRAPH, thread_id, RETURN_DRAFT_GATEWAY, user.user_id
+            )
     except AgentGraphNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from None
     except OrderServiceError as error:
@@ -419,9 +507,14 @@ def get_langgraph_agent(thread_id: str) -> AgentGraphResponse:
 
 @app.post("/agent-graph/runs/{thread_id}/return-reason", response_model=AgentGraphResponse,
           summary="补充退货原因并恢复同一会话")
-def post_return_reason(thread_id: str, request: ReturnReasonRequest) -> AgentGraphResponse:
+def post_return_reason(
+    thread_id: str,
+    request: ReturnReasonRequest,
+    user: AuthenticatedUser = Depends(authenticate_request),
+) -> AgentGraphResponse:
     try:
-        return submit_return_reason(AGENT_GRAPH, thread_id, request)
+        with bind_authenticated_user(user):
+            return submit_return_reason(AGENT_GRAPH, thread_id, request, user.user_id)
     except AgentGraphNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from None
     except AgentGraphStateError as error:
@@ -442,9 +535,11 @@ def post_return_reason(thread_id: str, request: ReturnReasonRequest) -> AgentGra
 def resume_langgraph_agent(
     thread_id: str,
     request: AgentGraphResumeRequest,
+    user: AuthenticatedUser = Depends(authenticate_request),
 ) -> AgentGraphResponse:
     try:
-        response = resume_agent_graph(AGENT_GRAPH, thread_id, request)
+        with bind_authenticated_user(user):
+            response = resume_agent_graph(AGENT_GRAPH, thread_id, request, user.user_id)
         if response.status == "STALE_CONFIRMATION":
             # 图已先保存失效状态，再由统一异常处理器向当前 HTTP 请求返回409。
             raise ReturnOrderChanged()
@@ -474,9 +569,15 @@ def resume_langgraph_agent(
         503: {"description": "Java 订单服务不可用"},
     },
 )
-def refresh_langgraph_return_confirmation(thread_id: str) -> AgentGraphResponse:
+def refresh_langgraph_return_confirmation(
+    thread_id: str,
+    user: AuthenticatedUser = Depends(authenticate_request),
+) -> AgentGraphResponse:
     try:
-        return refresh_return_confirmation(AGENT_GRAPH, thread_id, RETURN_DRAFT_GATEWAY)
+        with bind_authenticated_user(user):
+            return refresh_return_confirmation(
+                AGENT_GRAPH, thread_id, RETURN_DRAFT_GATEWAY, user.user_id
+            )
     except AgentGraphNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from None
     except AgentGraphStateError as error:

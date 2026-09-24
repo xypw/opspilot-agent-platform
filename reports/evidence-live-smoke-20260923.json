@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-23T06:23:19.362836+00:00",
+    "mode": "live-review",
+    "cases_file": "opspilot-live-smoke-cases.json",
+    "cases_sha256": "c6c77a85515eddbaf155fba476cbad9b174638f105d66501dcbfb31c53c7e34d",
+    "model": "glm-4.7-flash",
+    "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    "request_interval_seconds": 2.0,
+    "source_sha256": {
+      "evidence_support.py": "364b32576ec5512e67b157540473dd46873645621fdc476e7e568b449b087522",
+      "evidence_review.py": "15f8c68ff7f1d6e0b4b08566f7fd0faaf107032cfde0411220119a37c177b1e8",
+      "evidence_holdout_evaluation.py": "59e1de83ac03890295ad36a6d200c2fd74e3484155400028dd2a076efaf9c47f",
+      "preview_tool_call.py": "0935d0e2d8c720fa8db2bd10c52665fd384abd517a44bfe1fb029f76b1bfa21a",
+      "retry_policy.py": "9d4dda851dbcbcd5f574911c6af7217a8b13cd670d02680bb70370ec08c57de6"
+    },
+    "notes": [
+      "该数据集未参与当前确定性规则开发。",
+      "全部问题和政策片段均为虚构数据，不含个人信息。",
+      "rules 模式不调用外部模型；live-review 才调用本地配置的真实模型。",
+      "live-review 相邻请求至少间隔 2.0 秒。"
+    ]
+  },
+  "evaluation": {
+    "case_count": 1,
+    "positive_cases": 1,
+    "negative_cases": 0,
+    "counts": {
+      "tp": 0,
+      "fn": 1,
+      "fp": 0,
+      "tn": 0
+    },
+    "false_rejection_rate": 1.0,
+    "false_admission_rate": 0.0,
+    "uncertain_cases": 1,
+    "reviewer_calls": 1,
+    "model_http_attempts": 3,
+    "review_errors": 1,
+    "valid_correct_cases": 0,
+    "results": [
+      {
+        "case_id": "h01_refund_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "uncertain",
+        "predicted_sufficient": false,
+        "outcome": "fn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": {
+          "type": "ModelAPIError",
+          "status_code": 429
+        },
+        "model_http_attempts": 3,
+        "duration_ms": 1472.791
+      }
+    ]
+  }
+}

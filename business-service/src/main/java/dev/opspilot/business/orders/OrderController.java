@@ -1,5 +1,7 @@
 package dev.opspilot.business.orders;
 
+import dev.opspilot.business.security.ServiceAuthenticationFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,12 +29,13 @@ public class OrderController {
     }
 
     @GetMapping("/{orderId}")
-    public ResponseEntity<?> getOrder(@PathVariable String orderId) {
+    public ResponseEntity<?> getOrder(@PathVariable String orderId, HttpServletRequest request) {
         // 当前演示契约只接受 O- 加四位数字；Java 不能盲信 Python 的输入。
         if (!orderId.matches("O-[0-9]{4}")) {
             return ResponseEntity.badRequest().body(Map.of("code", "INVALID_ORDER_ID"));
         }
-        var order = repository.findById(orderId);
+        var order = repository.findByIdForUser(
+                orderId, ServiceAuthenticationFilter.currentUser(request).userId());
         if (order.isEmpty()) {
             // 查无业务记录与服务崩溃是不同结果，调用方必须区分。
             return ResponseEntity.status(404).body(Map.of("code", "ORDER_NOT_FOUND"));
@@ -42,27 +45,31 @@ public class OrderController {
 
     @PostMapping("/{orderId}/return-review")
     public ResponseEntity<?> reviewReturn(@PathVariable String orderId,
-            @RequestBody ReturnReviewService.ReviewRequest request) {
+            @RequestBody ReturnReviewService.ReviewRequest body,
+            HttpServletRequest request) {
         if (!orderId.matches("O-[0-9]{4}")) {
             return ResponseEntity.badRequest().body(Map.of("code", "INVALID_ORDER_ID"));
         }
-        var order = repository.findById(orderId);
+        var order = repository.findByIdForUser(
+                orderId, ServiceAuthenticationFilter.currentUser(request).userId());
         if (order.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("code", "ORDER_NOT_FOUND"));
         }
         try {
-            return ResponseEntity.ok(returnReviewService.review(order.get(), request));
+            return ResponseEntity.ok(returnReviewService.review(order.get(), body));
         } catch (IllegalArgumentException error) {
             return ResponseEntity.badRequest().body(Map.of("code", "INVALID_RETURN_REASON"));
         }
     }
 
     @GetMapping("/{orderId}/return-eligibility")
-    public ResponseEntity<?> getReturnEligibility(@PathVariable String orderId) {
+    public ResponseEntity<?> getReturnEligibility(
+            @PathVariable String orderId, HttpServletRequest request) {
         if (!orderId.matches("O-[0-9]{4}")) {
             return ResponseEntity.badRequest().body(Map.of("code", "INVALID_ORDER_ID"));
         }
-        var order = repository.findById(orderId);
+        var order = repository.findByIdForUser(
+                orderId, ServiceAuthenticationFilter.currentUser(request).userId());
         if (order.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("code", "ORDER_NOT_FOUND"));
         }

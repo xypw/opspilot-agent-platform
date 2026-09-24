@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot · 售后知识与业务服务</title>
+  <link rel="stylesheet" href="/demo-assets/demo.css">
+  <script src="/demo-assets/service.js" defer></script>
+</head>
+<body>
+  <header><div><strong>OpsPilot</strong><span>售后直接办理</span></div><a href="/demo">咨询 Agent ↗</a></header>
+  <main>
+    <aside>
+      <p class="eyebrow">知识资料</p><h1>查询有出处，<br>申请经确认。</h1>
+      <p>知识问答返回可核对的原文与页码；订单查询和申请直接调用确定性业务接口。</p>
+      <label for="access-token">演示访问令牌</label>
+      <input id="access-token" type="password" autocomplete="off" placeholder="仅保存在当前浏览器标签页">
+      <form id="upload-form" class="card">
+        <h2>上传政策 PDF</h2>
+        <label for="document-title">资料标题</label><input id="document-title" required maxlength="200">
+        <label for="document-file">PDF 文件</label><input id="document-file" type="file" accept=".pdf,application/pdf" required>
+        <button type="submit">上传资料</button>
+      </form>
+      <p class="note">想结合订单与政策提问？使用 <a href="/demo">售后 Agent</a>。真实证据复核会调用配置的模型服务；规则模式不产生模型调用。</p>
+    </aside>
+    <section>
+      <form id="knowledge-form" class="card">
+        <h2>政策问答</h2>
+        <label for="question">你的问题</label><textarea id="question" rows="2" maxlength="200" required></textarea>
+        <div class="row"><label for="review-mode">证据复核</label>
+          <select id="review-mode"><option value="rules">规则模式</option><option value="live">真实模型复核</option></select>
+          <button type="submit">查询证据</button></div>
+        <pre id="knowledge-answer" aria-live="polite">等待查询</pre>
+      </form>
+      <form id="order-form" class="card">
+        <h2>订单与退货资格</h2>
+        <label for="order-id">订单编号</label><input id="order-id" required pattern="O-[0-9]{4}" placeholder="O-2001">
+        <button type="submit">查询订单及资格</button>
+        <pre id="order-result">等待查询</pre>
+        <button id="start-draft" type="button" hidden>创建退货草稿</button>
+      </form>
+      <div id="draft-panel" class="card" hidden>
+        <h2>退货申请</h2>
+        <pre id="draft-preview"></pre>
+        <form id="reason-form" hidden>
+          <label for="return-reason">退货原因</label><textarea id="return-reason" maxlength="1000" required></textarea>
+          <label for="reason-code">原因类型</label><select id="reason-code"><option value="OTHER">其他</option><option value="QUALITY_ISSUE">质量问题</option><option value="PERSONAL_PREFERENCE">个人偏好</option></select>
+          <button type="submit">提交原因并预审</button>
+        </form>
+        <div id="confirm-panel" hidden>
+          <label><input id="confirm-check" type="checkbox"> 我已核对上方订单、商品、金额及有效期</label>
+          <button id="confirm-draft" type="button" disabled>确认创建退货申请</button>
+        </div>
+        <button id="cancel-draft" type="button" class="secondary">取消草稿</button>
+        <button id="refresh-draft" type="button" class="secondary" hidden>订单变化后刷新确认快照</button>
+        <pre id="draft-result" aria-live="polite"></pre>
+      </div>
+      <p id="notice" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+</body>
+</html>

@@ -50,6 +50,10 @@ if (typeof document !== "undefined") {
   };
   let current = null;
   let busy = false;
+  el("access-token").value = sessionStorage.getItem("opspilot-access-token") || "";
+  el("access-token").addEventListener("input", () => {
+    sessionStorage.setItem("opspilot-access-token", el("access-token").value.trim());
+  });
 
   function syncControls() {
     const actions = actionsFor(current);
@@ -73,10 +77,12 @@ if (typeof document !== "undefined") {
   }
 
   async function request(path, method = "GET", body) {
-    const options = { method, cache: "no-store" };
+    const token = el("access-token").value.trim();
+    const options = { method, cache: "no-store", headers: {} };
+    if (token) options.headers.Authorization = "Bearer " + token;
     if (body instanceof FormData) options.body = body;
     else if (body !== undefined) {
-      options.headers = { "Content-Type": "application/json" };
+      options.headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(body);
     }
     const response = await fetch(path, options);

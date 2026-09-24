@@ -13,7 +13,7 @@
     <artifactId>business-service</artifactId>
     <version>0.1.0</version>
     <name>OpsPilot Business Service</name>
-    <description>Local-only order API for learning the Java/Python boundary</description>
+    <description>Authenticated order and return business service for OpsPilot</description>
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

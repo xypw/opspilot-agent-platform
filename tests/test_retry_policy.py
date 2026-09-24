@@ -94,6 +94,30 @@ class RetryPolicyTests(unittest.TestCase):
         self.assertFalse(is_retryable_error(ModelAPIError(401)))
         self.assertTrue(is_retryable_error(ModelAPIError(429)))
 
+    def test_forwards_json_response_format(self):
+        captured_payload = None
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            nonlocal captured_payload
+            captured_payload = json.loads(request.content)
+            return httpx.Response(200, json={
+                "choices": [{"message": {"role": "assistant", "content": "{}"}}]
+            })
+
+        client = httpx.Client(transport=httpx.MockTransport(respond), trust_env=False)
+        self.addCleanup(client.close)
+
+        request_message_with_retry(
+            "fake-key",
+            client,
+            build_initial_messages(),
+            offer_tools=False,
+            response_format={"type": "json_object"},
+        )
+
+        self.assertEqual(captured_payload["response_format"], {"type": "json_object"})
+        self.assertNotIn("tools", captured_payload)
+
     def test_invalid_attempt_count_fails_before_request(self):
         client, request_count = self.make_client([])
         with self.assertRaises(ValueError):

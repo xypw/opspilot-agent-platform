@@ -2,10 +2,37 @@
 
 import unittest
 
-from evidence_support import filter_evidence_for_question
+from evidence_support import (
+    classify_evidence_for_question,
+    filter_evidence_for_question,
+    partition_evidence_for_question,
+)
 
 
 class EvidenceSupportTests(unittest.TestCase):
+    def test_three_way_gate_keeps_paraphrase_for_semantic_review(self):
+        paraphrase = "通过订单记录旁的售后入口发起请求，并补充原因后确认。"
+        self.assertEqual(
+            classify_evidence_for_question("如何办理退款", paraphrase), "uncertain"
+        )
+
+    def test_three_way_gate_hard_rejects_conflicting_answer_type(self):
+        timing = "退款申请审核通过后三个工作日到账。"
+        self.assertEqual(
+            classify_evidence_for_question("如何办理退款", timing), "reject"
+        )
+
+    def test_partition_preserves_ranking_inside_each_bucket(self):
+        candidates = [
+            {"chunk_id": "timing", "content": "退款申请审核通过后三个工作日到账。"},
+            {"chunk_id": "paraphrase", "content": "通过售后入口发起请求并补充原因后确认。"},
+            {"chunk_id": "steps", "content": "打开订单详情页，点击申请退款。"},
+        ]
+        partition = partition_evidence_for_question("如何办理退款", candidates)
+        self.assertEqual([item["chunk_id"] for item in partition["rejected"]], ["timing"])
+        self.assertEqual([item["chunk_id"] for item in partition["uncertain"]], ["paraphrase"])
+        self.assertEqual([item["chunk_id"] for item in partition["admitted"]], ["steps"])
+
     def test_refund_timing_does_not_answer_refund_steps(self):
         timing = [{"chunk_id": "timing", "content": "退款审核通过后三个工作日到账。"}]
 

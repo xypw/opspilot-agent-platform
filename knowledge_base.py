@@ -118,7 +118,19 @@ def index_uploaded_document(result: dict, source_filename: str) -> None:
 def search_knowledge_base(
     query: str, limit: int = 3, *, backend: str | None = None
 ) -> list[dict]:
-    """读写使用同一后端；数据库故障不回退到内置演示片段。"""
+    """检索后执行确定性证据门禁，供普通接口和离线模式使用。"""
+    candidates = search_knowledge_candidates(query, limit, backend=backend)
+    return filter_evidence_for_question(query, candidates)[:limit]
+
+
+def search_knowledge_candidates(
+    query: str, limit: int = 3, *, backend: str | None = None
+) -> list[dict]:
+    """返回相似度合格的宽召回候选，不执行答案类型门禁。
+
+    Agent 真实模式会先做三态规则分类，再让结构化证据审查器复核不确定候选；
+    普通知识库接口仍通过 ``search_knowledge_base`` 返回确定性过滤后的结果。
+    """
     selected_backend = KNOWLEDGE_STORE_BACKEND if backend is None else backend
     if selected_backend not in {"memory", "postgres"}:
         raise ValueError("知识库检索后端只能是 memory 或 postgres")
@@ -132,7 +144,7 @@ def search_knowledge_base(
             result for result in results
             if result["score"] >= MIN_SEMANTIC_SIMILARITY
         ]
-        return filter_evidence_for_question(query, admitted)[:limit]
+        return admitted
 
     if VECTOR_STORE.records:
         try:
@@ -154,7 +166,7 @@ def search_knowledge_base(
                 candidate_limit,
                 min_semantic_similarity=MIN_SEMANTIC_SIMILARITY,
             )
-        return filter_evidence_for_question(query, [
+        return [
             {
                 **{
                     key: value
@@ -165,12 +177,12 @@ def search_knowledge_base(
                 "score": result.get("rerank_score", result["rrf_score"]),
             }
             for result in hybrid_results
-        ])[:limit]
+        ]
     keyword_results = keyword_search(query, KNOWLEDGE_CHUNKS, candidate_limit)
-    return filter_evidence_for_question(query, [
+    return [
         {
             **{key: value for key, value in result.items() if key != "keyword_score"},
             "score": result["keyword_score"],
         }
         for result in keyword_results
-    ])[:limit]
+    ]

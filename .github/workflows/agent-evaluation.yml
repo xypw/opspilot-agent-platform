@@ -14,6 +14,7 @@ jobs:
       REDIS_URL: " "
       TICKET_REPOSITORY_BACKEND: memory
       ORDER_QUERY_BACKEND: memory
+      OPSPILOT_AUTH_REQUIRED: "false"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,7 +32,7 @@ jobs:
         run: python -X utf8 -m unittest discover -s tests
 
       - name: Run demo page tests
-        run: node --test static/demo.test.cjs
+        run: node --test static/demo.test.cjs static/service.test.cjs
 
       - name: Generate current Agent evaluation report
         run: >-
@@ -43,7 +44,7 @@ jobs:
       - name: Check Agent evaluation regression
         run: >-
           python -X utf8 scripts/check_agent_regression.py
-          --baseline output/evaluation/agent-evaluation-mock.json
+          --baseline reports/agent-v2-offline-20260923.json
           --current output/evaluation/current-agent-evaluation.json
 
   java-tests:

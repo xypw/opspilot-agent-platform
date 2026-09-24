@@ -5,6 +5,7 @@ import re
 import httpx
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt, model_validator
 from typing import Literal
+from auth import current_authorization_header
 from order_query_factory import ConfiguredJavaOrderQuery
 from order_service_client import OrderServiceError
 from return_review_client import ReturnReviewRequest, ReturnReviewResponse
@@ -12,6 +13,15 @@ from return_review_client import ReturnReviewRequest, ReturnReviewResponse
 
 class ReturnDraftExpired(OrderServiceError):
     pass
+
+
+class ReturnDraftRejected(OrderServiceError):
+    """Java 返回的明确业务拒绝，保留状态码供显式 API 呈现。"""
+
+    def __init__(self, status_code: int, code: str):
+        self.status_code = status_code
+        self.code = code
+        super().__init__(code)
 
 
 class ReturnOrderChanged(Exception):
@@ -57,7 +67,8 @@ class JavaReturnDraftGateway:
             raise ValueError("订单编号格式不正确")
         try:
             with httpx.Client(base_url=self.service_url, timeout=2.0,
-                              trust_env=False, follow_redirects=False) as http:
+                              trust_env=False, follow_redirects=False,
+                              headers=current_authorization_header()) as http:
                 response = http.request(method, f"/api/orders/{order_id}/return-draft{suffix}", json=payload)
         except httpx.RequestError:
             raise OrderServiceError("草稿服务暂时不可用，请重试") from None
@@ -75,6 +86,14 @@ class JavaReturnDraftGateway:
                 expired = False
             if expired:
                 raise ReturnDraftExpired("退货草稿已超过1小时有效期")
+        if response.status_code in {400, 404, 409, 410}:
+            try:
+                payload = response.json()
+                code = payload.get("code") if isinstance(payload, dict) else None
+            except ValueError:
+                code = None
+            if isinstance(code, str) and re.fullmatch(r"[A-Z_]{3,80}", code):
+                raise ReturnDraftRejected(response.status_code, code)
         if response.status_code != 200:
             raise OrderServiceError("无法完成草稿操作，请检查服务或订单状态")
         try:

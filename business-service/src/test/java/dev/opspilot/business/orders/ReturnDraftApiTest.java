@@ -10,7 +10,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "opspilot.auth.required=false")
 @Import(ReturnDraftApiTest.Config.class)
 class ReturnDraftApiTest {
     static class MutableClock extends Clock {

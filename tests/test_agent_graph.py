@@ -18,6 +18,7 @@ from agent_graph import (
 from main import app
 from knowledge_base import KnowledgeStoreUnavailableError
 from pending_actions import PendingActionStore
+from preview_tool_call import ModelAPIError
 from tickets import TICKETS, query_ticket
 
 
@@ -78,6 +79,37 @@ class EndlessReadGateway:
                 },
             }],
         }
+
+
+class PrematureCompoundGateway:
+    """模型提前宣称任务完成，用于验证联合问题的完成门槛。"""
+
+    def __init__(self):
+        self.calls = 0
+
+    def request(self, mode, messages, *, offer_tools):
+        self.calls += 1
+        return {"role": "assistant", "content": "订单明天到账。"}
+
+
+class HallucinatedCompoundGateway:
+    """模型查完两类资料后仍编造具体到账日。"""
+
+    def __init__(self):
+        self.calls = 0
+
+    def request(self, mode, messages, *, offer_tools):
+        self.calls += 1
+        if self.calls <= 2:
+            name, arguments = (
+                ("query_order", '{"order_id":"O-2001"}') if self.calls == 1
+                else ("search_knowledge_base", '{"query":"退款多久到账","limit":3}')
+            )
+            return {"role": "assistant", "content": None, "tool_calls": [{
+                "id": f"compound-{self.calls}", "type": "function",
+                "function": {"name": name, "arguments": arguments},
+            }]}
+        return {"role": "assistant", "content": "订单 O-2001 的退款明天到账。"}
 
 
 class AgentGraphTests(unittest.TestCase):
@@ -151,11 +183,24 @@ class AgentGraphTests(unittest.TestCase):
         with patch("tool_executor.RETURN_ELIGIBILITY_QUERY", return_value=eligibility) as query:
             response = self.start("订单 O-2001 可以退货吗？")
 
-        self.assertEqual(response.status, "WAITING_CONFIRMATION")
+        self.assertEqual(response.status, "COMPLETED")
         self.assertEqual(response.tool_name, "check_return_eligibility")
-        self.assertIn("确认", response.answer)
-        self.assertEqual(response.return_draft.product, "机械键盘")
+        self.assertIn("可以申请退货", response.answer)
+        self.assertIsNone(response.return_draft)
+        self.draft_gateway.start.assert_not_called()
         query.assert_called_once_with("O-2001")
+
+    def test_explicit_return_application_creates_draft_and_waits_for_confirmation(self):
+        eligibility = {
+            "order_id": "O-2001", "decision": "NO_REASON_ALLOWED", "can_apply": True,
+            "reason_required": False, "days_since_delivery": 7,
+            "reason": "WITHIN_7_DAY_NO_REASON_WINDOW",
+        }
+        with patch("tool_executor.RETURN_ELIGIBILITY_QUERY", return_value=eligibility):
+            response = self.start("请帮我申请退货，订单 O-2001", thread_id="apply-return-001")
+        self.assertEqual(response.status, "WAITING_CONFIRMATION")
+        self.assertEqual(response.return_draft.product, "机械键盘")
+        self.draft_gateway.start.assert_called_once_with("O-2001")
 
     def test_knowledge_question_routes_to_rag_and_adds_programmatic_citation(self):
         response = self.start("退款多久到账")
@@ -208,7 +253,46 @@ class AgentGraphTests(unittest.TestCase):
         self.assertIn("机械键盘", response.answer)
         self.assertIn("三个工作日", response.answer)
         self.assertIn("来源：《售后与退款制度》第2页", response.answer)
+        self.assertIn("无法给出这笔订单的具体到账日期", response.answer)
         self.assertEqual(response.simulated_model_requests, 3)
+
+    def test_compound_question_retries_once_then_abstains_when_model_skips_tools(self):
+        gateway = PrematureCompoundGateway()
+        graph = build_agent_graph(self.store, gateway)
+        response = start_agent_graph(graph, AgentGraphStartRequest(
+            thread_id="premature-compound-001",
+            message="订单 O-2001 的退款多久到账？",
+            mode="mock",
+        ))
+        self.assertEqual(gateway.calls, 2)
+        self.assertEqual(response.tool_steps, 0)
+        self.assertIn("尚未同时取得订单信息和政策证据", response.answer)
+        self.assertNotIn("明天到账", response.answer)
+
+    def test_compound_answer_uses_order_and_policy_not_model_claim(self):
+        graph = build_agent_graph(self.store, HallucinatedCompoundGateway())
+        response = start_agent_graph(graph, AgentGraphStartRequest(
+            thread_id="grounded-compound-001",
+            message="订单 O-2001 的退款多久到账？",
+            mode="mock",
+        ))
+        self.assertEqual(response.tool_steps, 2)
+        self.assertIn("机械键盘", response.answer)
+        self.assertIn("三个工作日", response.answer)
+        self.assertNotIn("明天到账", response.answer)
+        self.assertIn("来源：《售后与退款制度》第2页", response.answer)
+
+    def test_order_and_return_shipping_policy_does_not_create_return_draft(self):
+        response = self.start(
+            "订单 O-2001 的退货运费政策是什么？",
+            thread_id="shipping-policy-001",
+        )
+        self.assertEqual(response.tool_steps, 2)
+        self.assertEqual(
+            [step.tool_name for step in response.tool_trace],
+            ["query_order", "search_knowledge_base"],
+        )
+        self.draft_gateway.start.assert_not_called()
 
     def test_read_tool_loop_stops_offering_tools_after_three_steps(self):
         gateway = EndlessReadGateway()
@@ -301,6 +385,22 @@ class AgentGraphTests(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         # 不回显原始模型工具参数，避免泄露内部模型输出。
         self.assertEqual(response.json(), {"detail": "模型返回的工具调用或参数不符合约定。"})
+
+    def test_fastapi_maps_evidence_reviewer_model_errors(self):
+        cases = (
+            (ModelAPIError(429), 503, "真实模型凭据、权限或配额不可用。"),
+            (ModelAPIError(500), 502, "上游模型请求失败，本次流程未完成。"),
+        )
+        for error, status_code, detail in cases:
+            with self.subTest(status_code=status_code):
+                with patch("main.start_agent_graph", side_effect=error):
+                    response = TestClient(app).post("/agent-graph/runs", json={
+                        "thread_id": f"review-error-{status_code}",
+                        "message": "退款多久到账",
+                        "mode": "live",
+                    })
+                self.assertEqual(response.status_code, status_code)
+                self.assertEqual(response.json(), {"detail": detail})
 
     def test_fastapi_reads_agent_state_by_thread_id(self):
         with patch("main.AGENT_GRAPH", self.graph):

@@ -51,6 +51,9 @@ services:
       - "8081:8081"
     environment:
       SERVER_ADDRESS: 0.0.0.0
+      OPSPILOT_AUTH_REQUIRED: "true"
+      OPSPILOT_AUTH_TOKENS: ${OPSPILOT_AUTH_TOKENS}
+      OPSPILOT_INTERNAL_SERVICE_TOKEN: ${OPSPILOT_INTERNAL_SERVICE_TOKEN}
       RETURN_DRAFT_STORE_BACKEND: postgres
       BUSINESS_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -59,7 +62,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/api/orders/O-2001"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/health"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -80,6 +83,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       ORDER_QUERY_BACKEND: java
       ORDER_SERVICE_URL: http://business-service:8081
+      OPSPILOT_AUTH_REQUIRED: "true"
+      OPSPILOT_AUTH_TOKENS: ${OPSPILOT_AUTH_TOKENS}
+      OPSPILOT_INTERNAL_SERVICE_TOKEN: ${OPSPILOT_INTERNAL_SERVICE_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy

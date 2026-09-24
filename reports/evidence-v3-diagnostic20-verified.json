@@ -1,0 +1,435 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-23T15:49:26.517347+00:00",
+    "mode": "rules",
+    "dataset_role": "regression",
+    "cases_file": "evidence_holdout_cases.json",
+    "cases_sha256": "3bf676e24e73b01f76e5d7ec0b8bd72a1bba61b8b7133af4461a9344ca939bae",
+    "model": null,
+    "endpoint": null,
+    "request_interval_seconds": 2.0,
+    "source_sha256": {
+      "evidence_support.py": "bd0efc57b6f0a9ccba6c73f155c0f0951d372c114196a33b47ef6d1ad4219cdc",
+      "evidence_review.py": "15f8c68ff7f1d6e0b4b08566f7fd0faaf107032cfde0411220119a37c177b1e8",
+      "evidence_holdout_evaluation.py": "bda4b01ace3ffe3aafb15d20eeb50e0f8bdbc9c78e3e4895cf56252a23c888df",
+      "preview_tool_call.py": "293aa9b6155fb52ccc596eb0e4682a927c63ffeccb0c3caca5141532bb4bde95",
+      "retry_policy.py": "9d4dda851dbcbcd5f574911c6af7217a8b13cd670d02680bb70370ec08c57de6"
+    },
+    "notes": [
+      "该数据集用于回归；通过率不能解释为未见问题的泛化准确率。",
+      "全部问题和政策片段均为虚构数据，不含个人信息。",
+      "rules 模式不调用外部模型；live-review 才调用本地配置的真实模型。",
+      "live-review 相邻请求至少间隔 2.0 秒。"
+    ]
+  },
+  "evaluation": {
+    "case_count": 20,
+    "positive_cases": 10,
+    "negative_cases": 10,
+    "counts": {
+      "tp": 10,
+      "fn": 0,
+      "fp": 0,
+      "tn": 10
+    },
+    "false_rejection_rate": 0.0,
+    "false_admission_rate": 0.0,
+    "uncertain_cases": 3,
+    "reviewer_calls": 0,
+    "model_http_attempts": 0,
+    "review_errors": 0,
+    "valid_correct_cases": 20,
+    "results": [
+      {
+        "case_id": "h01_refund_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "procedure"
+        ],
+        "provided_answer_types": [
+          "procedure"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h01"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h02_refund_timing_colloquial",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "timing"
+        ],
+        "provided_answer_types": [
+          "destination",
+          "timing"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h02"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h03_invoice_destination_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "destination"
+        ],
+        "provided_answer_types": [
+          "destination"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h03"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h04_return_eligibility_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "eligibility"
+        ],
+        "provided_answer_types": [
+          "eligibility",
+          "timing"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h04"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h05_payment_code_exact",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "meaning"
+        ],
+        "provided_answer_types": [
+          "eligibility",
+          "meaning"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h05"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h06_high_ticket_synonym",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "timing"
+        ],
+        "provided_answer_types": [
+          "timing"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h06"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h07_cancel_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "procedure"
+        ],
+        "provided_answer_types": [
+          "procedure"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h07"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h08_refund_destination_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "destination"
+        ],
+        "provided_answer_types": [
+          "destination"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h08"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h09_invoice_process_paraphrase",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "procedure"
+        ],
+        "provided_answer_types": [
+          "procedure"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h09"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h10_membership_expiry",
+        "expected_sufficient": true,
+        "gate_decision": "admit",
+        "gate_reason": "matched_required_facts",
+        "required_answer_types": [
+          "timing"
+        ],
+        "provided_answer_types": [
+          "timing"
+        ],
+        "predicted_sufficient": true,
+        "outcome": "tp",
+        "selected_chunk_ids": [
+          "h10"
+        ],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h11_process_from_timing",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "answer_type_mismatch",
+        "required_answer_types": [
+          "procedure"
+        ],
+        "provided_answer_types": [
+          "destination",
+          "timing"
+        ],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h12_invoice_destination_from_eligibility",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "answer_type_mismatch",
+        "required_answer_types": [
+          "destination"
+        ],
+        "provided_answer_types": [
+          "eligibility"
+        ],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h13_wrong_payment_identifier",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "identifier_conflict",
+        "required_answer_types": [
+          "meaning"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h14_urgent_from_standard",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "scope_conflict",
+        "required_answer_types": [
+          "timing"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h15_return_from_warranty",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "scope_conflict",
+        "required_answer_types": [
+          "eligibility"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h16_timing_from_contact",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "answer_type_mismatch",
+        "required_answer_types": [
+          "timing"
+        ],
+        "provided_answer_types": [
+          "procedure"
+        ],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h17_process_from_status",
+        "expected_sufficient": false,
+        "gate_decision": "uncertain",
+        "gate_reason": "missing_required_facts",
+        "required_answer_types": [
+          "procedure"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h18_destination_from_vague_status",
+        "expected_sufficient": false,
+        "gate_decision": "uncertain",
+        "gate_reason": "missing_required_facts",
+        "required_answer_types": [
+          "destination"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h19_eligibility_from_amount",
+        "expected_sufficient": false,
+        "gate_decision": "uncertain",
+        "gate_reason": "missing_required_facts",
+        "required_answer_types": [
+          "eligibility"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      },
+      {
+        "case_id": "h20_high_ticket_from_normal",
+        "expected_sufficient": false,
+        "gate_decision": "reject",
+        "gate_reason": "scope_conflict",
+        "required_answer_types": [
+          "timing"
+        ],
+        "provided_answer_types": [],
+        "predicted_sufficient": false,
+        "outcome": "tn",
+        "selected_chunk_ids": [],
+        "review_verdict": null,
+        "error": null,
+        "model_http_attempts": 0,
+        "duration_ms": 0.0
+      }
+    ]
+  }
+}

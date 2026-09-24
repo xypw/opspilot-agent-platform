@@ -1,0 +1,142 @@
+[
+  {
+    "case_id": "h01_refund_process_paraphrase",
+    "question": "如何办理退款？",
+    "candidate": {"chunk_id": "h01", "title": "售后指南", "page": 2, "content": "在订单记录旁找到售后入口，发起款项返还请求并补充原因后确认。", "score": 0.83},
+    "sufficient": true,
+    "rationale": "流程使用改写表达，没有固定的点击、填写或提交关键词"
+  },
+  {
+    "case_id": "h02_refund_timing_colloquial",
+    "question": "钱什么时候能回到卡里？",
+    "candidate": {"chunk_id": "h02", "title": "退款时效", "page": 1, "content": "退款审核通过后的第三个工作日，款项会退回原支付账户。", "score": 0.82},
+    "sufficient": true,
+    "rationale": "口语问题与明确到账时效"
+  },
+  {
+    "case_id": "h03_invoice_destination_paraphrase",
+    "question": "电子发票最后会发到哪？",
+    "candidate": {"chunk_id": "h03", "title": "开票说明", "page": 3, "content": "开具结果会投递至申请人预留的电子信箱。", "score": 0.79},
+    "sufficient": true,
+    "rationale": "电子信箱是邮箱的同义表达"
+  },
+  {
+    "case_id": "h04_return_eligibility_paraphrase",
+    "question": "刚收到商品还能退吗？",
+    "candidate": {"chunk_id": "h04", "title": "退货规则", "page": 4, "content": "收货未满七日，消费者有权发起无理由退货。", "score": 0.84},
+    "sufficient": true,
+    "rationale": "有权发起与可以申请语义一致"
+  },
+  {
+    "case_id": "h05_payment_code_exact",
+    "question": "PAYMENT_409 表示什么？",
+    "candidate": {"chunk_id": "h05", "title": "支付错误码", "page": 5, "content": "PAYMENT_409 表示订单已经完成支付，不能再次扣款。", "score": 0.91},
+    "sufficient": true,
+    "rationale": "精确业务标识符和含义"
+  },
+  {
+    "case_id": "h06_high_ticket_synonym",
+    "question": "高优先级工单多久响应？",
+    "candidate": {"chunk_id": "h06", "title": "工单服务等级", "page": 2, "content": "紧急级别的工单须在二十分钟内首次响应。", "score": 0.8},
+    "sufficient": true,
+    "rationale": "紧急级别是高优先级的业务同义词"
+  },
+  {
+    "case_id": "h07_cancel_process_paraphrase",
+    "question": "订单要怎样取消？",
+    "candidate": {"chunk_id": "h07", "title": "订单操作", "page": 2, "content": "在待发货记录中发起撤销请求，系统校验后关闭该笔交易。", "score": 0.78},
+    "sufficient": true,
+    "rationale": "撤销和关闭交易是取消订单的改写"
+  },
+  {
+    "case_id": "h08_refund_destination_paraphrase",
+    "question": "退款会退到哪里？",
+    "candidate": {"chunk_id": "h08", "title": "退款路径", "page": 2, "content": "审核完成后，款项沿原付款方式返还。", "score": 0.81},
+    "sufficient": true,
+    "rationale": "沿原付款方式返还是原路退款的改写"
+  },
+  {
+    "case_id": "h09_invoice_process_paraphrase",
+    "question": "发票怎么开？",
+    "candidate": {"chunk_id": "h09", "title": "发票指南", "page": 1, "content": "订单完成后，在票据服务入口发起开具请求并补全抬头信息。", "score": 0.8},
+    "sufficient": true,
+    "rationale": "流程动词未使用原规则中的固定表达"
+  },
+  {
+    "case_id": "h10_membership_expiry",
+    "question": "积分哪天失效？",
+    "candidate": {"chunk_id": "h10", "title": "会员积分", "page": 6, "content": "积分自到账之日起十二个月后失效。", "score": 0.86},
+    "sufficient": true,
+    "rationale": "直接提供有效期"
+  },
+  {
+    "case_id": "h11_process_from_timing",
+    "question": "如何办理退款？",
+    "candidate": {"chunk_id": "h11", "title": "退款时效", "page": 1, "content": "退款审核通过后三个工作日原路到账。", "score": 0.9},
+    "sufficient": false,
+    "rationale": "到账时间不能回答申请流程"
+  },
+  {
+    "case_id": "h12_invoice_destination_from_eligibility",
+    "question": "电子发票会发送到哪里？",
+    "candidate": {"chunk_id": "h12", "title": "发票资格", "page": 1, "content": "订单完成后可以申请电子发票。", "score": 0.88},
+    "sufficient": false,
+    "rationale": "可以申请不能回答发送位置"
+  },
+  {
+    "case_id": "h13_wrong_payment_identifier",
+    "question": "PAYMENT_409 表示什么？",
+    "candidate": {"chunk_id": "h13", "title": "支付错误码", "page": 5, "content": "PAYMENT_503 表示支付服务暂时不可用。", "score": 0.92},
+    "sufficient": false,
+    "rationale": "业务标识符不一致"
+  },
+  {
+    "case_id": "h14_urgent_from_standard",
+    "question": "紧急退款多久能到账？",
+    "candidate": {"chunk_id": "h14", "title": "普通退款", "page": 2, "content": "普通退款审核通过后三个工作日到账。", "score": 0.89},
+    "sufficient": false,
+    "rationale": "业务等级冲突"
+  },
+  {
+    "case_id": "h15_return_from_warranty",
+    "question": "刚收到商品还能退吗？",
+    "candidate": {"chunk_id": "h15", "title": "保修规则", "page": 2, "content": "商品发生质量故障时可以申请一年保修。", "score": 0.77},
+    "sufficient": false,
+    "rationale": "保修资格不能回答退货资格"
+  },
+  {
+    "case_id": "h16_timing_from_contact",
+    "question": "退款多久能到账？",
+    "candidate": {"chunk_id": "h16", "title": "退款帮助", "page": 2, "content": "如有退款问题，请联系人工客服。", "score": 0.8},
+    "sufficient": false,
+    "rationale": "联系渠道没有提供到账时间"
+  },
+  {
+    "case_id": "h17_process_from_status",
+    "question": "如何申请退款？",
+    "candidate": {"chunk_id": "h17", "title": "退款状态", "page": 2, "content": "退款请求已经受理，当前正在等待审核。", "score": 0.85},
+    "sufficient": false,
+    "rationale": "受理状态没有提供申请流程"
+  },
+  {
+    "case_id": "h18_destination_from_vague_status",
+    "question": "退款会退到哪里？",
+    "candidate": {"chunk_id": "h18", "title": "退款状态", "page": 2, "content": "退款申请正在处理中，请耐心等待。", "score": 0.82},
+    "sufficient": false,
+    "rationale": "处理状态没有说明退款去向"
+  },
+  {
+    "case_id": "h19_eligibility_from_amount",
+    "question": "这个订单是否可以退款？",
+    "candidate": {"chunk_id": "h19", "title": "退款金额", "page": 3, "content": "退款金额以订单实际支付金额为上限。", "score": 0.83},
+    "sufficient": false,
+    "rationale": "金额规则不能判断资格"
+  },
+  {
+    "case_id": "h20_high_ticket_from_normal",
+    "question": "高优先级工单多久响应？",
+    "candidate": {"chunk_id": "h20", "title": "普通工单", "page": 2, "content": "普通优先级工单在一个工作日内首次响应。", "score": 0.9},
+    "sufficient": false,
+    "rationale": "工单等级冲突"
+  }
+]

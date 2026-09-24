@@ -52,7 +52,7 @@ class ReturnReasonFlowTests(unittest.TestCase):
 
     def start(self, thread="reason-1", **extra):
         return self.client.post("/agent-graph/runs", json={
-            "thread_id": thread, "message": "订单 O-2001 能退货吗", "mode": "mock", **extra,
+            "thread_id": thread, "message": "请帮我申请退货，订单 O-2001", "mode": "mock", **extra,
         })
 
     def test_pause_refresh_resume_and_repeated_submission(self):

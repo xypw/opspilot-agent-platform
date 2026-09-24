@@ -20,7 +20,7 @@ from agent_evaluation_runtime import build_isolated_evaluation_graph
 from agent_graph import AgentGraphResponse
 
 
-CASES_FILE = Path(__file__).parents[1] / "evaluation_data" / "agent_task_cases.json"
+CASES_FILE = Path(__file__).parents[1] / "evaluation_data" / "agent_task_cases_v2.json"
 
 
 def build_response(case_id: str, *, tools: list[str], answer: str) -> AgentGraphResponse:
@@ -46,7 +46,7 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
     def test_loads_the_fixed_json_cases(self):
         cases = load_evaluation_cases(CASES_FILE)
 
-        self.assertEqual(len(cases), 7)
+        self.assertEqual(len(cases), 8)
         self.assertEqual(cases[0].case_id, "ticket-status-lookup")
 
     def test_duplicate_case_ids_are_rejected_before_execution(self):
@@ -282,15 +282,15 @@ class AgentEvaluationRunnerTests(unittest.TestCase):
         require_external_model_permission("live", allowed=True)
 
     def test_all_fixed_cases_run_against_the_isolated_mock_graph(self):
-        # 这不是伪造响应：七条问题会真实经过 LangGraph 节点、工具和中断路由。
+        # 这不是伪造响应：八条问题会真实经过 LangGraph 节点、工具和中断路由。
         cases = load_evaluation_cases(CASES_FILE)
         graph = build_isolated_evaluation_graph()
         runner = build_langgraph_runner(graph, mode="mock")
 
         summary = run_evaluation_cases(cases, runner)
 
-        self.assertEqual(summary.total_cases, 7)
-        self.assertEqual(summary.successful_cases, 7)
+        self.assertEqual(summary.total_cases, 8)
+        self.assertEqual(summary.successful_cases, 8)
         self.assertEqual(summary.failed_cases, 0)
         self.assertEqual(summary.errored_cases, 0)
         self.assertEqual(summary.evaluation_completion_rate, 1.0)

@@ -20,12 +20,16 @@ from langgraph.types import Command, interrupt
 from pydantic import BaseModel, ConfigDict, Field
 
 from action_models import PendingAction
-from evidence_review import EvidenceReviewer, verify_evidence_review
+from agent_task_contract import (
+    grounded_order_policy_answer, required_tools, wants_return_application,
+)
+from evidence_review import EvidenceReviewer, EvidenceReviewReply, verify_evidence_review
+from evidence_support import partition_evidence_for_question
 from grounding_policy import answer_when_evidence_is_missing, append_verified_citations
 from order_service_client import OrderServiceError
 from preview_tool_call import build_initial_messages, extract_tool_preview, load_api_key
 from retry_policy import ModelRequestTelemetry, request_message_with_retry
-from tool_args import RequestPriorityChangeArgs
+from tool_args import RequestPriorityChangeArgs, SearchKnowledgeBaseArgs
 from tool_executor import execute_tool
 from tool_messages import build_tool_message
 from return_review_client import ReasonCode, ReturnReviewRequest, ReturnReviewResponse
@@ -95,6 +99,7 @@ class AgentGraphState(TypedDict, total=False):
     """LangGraph 的内部 State：不是 HTTP 请求体，也不会直接暴露给前端。"""
 
     thread_id: str
+    owner_user_id: str
     mode: AgentMode
     messages: list[dict]
     status: AgentGraphStatus
@@ -108,6 +113,10 @@ class AgentGraphState(TypedDict, total=False):
     answer: str
     tool_steps: int
     tool_trace: list[dict]
+    task_question: str
+    apply_requested: bool
+    completion_retries: int
+    retry_model: bool
     rag_evidence: list[dict]
     evidence_review: dict
     model_requests: int
@@ -264,11 +273,13 @@ class ConfiguredAgentModelGateway:
     def _select_mock_follow_up(
         question: str, observations: list[tuple[str, object]]
     ) -> tuple[str, dict] | None:
-        """只模拟一个可验收的两步场景；不声称具备真实模型规划能力。"""
+        """模拟明确的订单加政策问题；不声称具备真实模型规划能力。"""
         completed = {name for name, _ in observations}
-        asks_refund_timing = any(text in question for text in ("退款多久到账", "退款时间", "退款到账"))
-        if "query_order" in completed and "search_knowledge_base" not in completed and asks_refund_timing:
-            return "search_knowledge_base", {"query": "退款多久到账", "limit": 3}
+        if ("query_order" in completed and "search_knowledge_base" not in completed
+                and required_tools(question)):
+            query = ("退款多久到账" if "退款" in question and "到账" in question
+                     else re.sub(r"O-[0-9]{4}", "", question).strip(" ，。？?的订单")[:200])
+            return "search_knowledge_base", {"query": query or "售后政策", "limit": 3}
         return None
 
     @staticmethod
@@ -314,7 +325,11 @@ class ConfiguredAgentModelGateway:
             raise AgentGraphInputError("模拟模式每次只支持一个工单或订单编号。")
 
         change_requested = any(word in question for word in ("改", "设置", "调整"))
-        return_requested = any(word in question for word in ("退货", "无理由", "能退", "可以退"))
+        return_requested = any(word in question for word in (
+            "无理由", "能退", "可以退", "退货资格", "退货期限",
+            "申请退货", "我要退货", "退货吗", "创建退货申请",
+            "发起退货", "提交退货", "办理退货", "帮我退货",
+        ))
         priorities = {
             value.lower()
             for value in re.findall(r"(?<![A-Za-z])(low|medium|high)(?![A-Za-z])", question, re.I)
@@ -328,7 +343,8 @@ class ConfiguredAgentModelGateway:
                     "ticket_id": record_id,
                     "new_priority": priorities.pop(),
                 }
-            if record_id.startswith("O-") and return_requested:
+            if (record_id.startswith("O-") and return_requested
+                    and (not required_tools(question) or wants_return_application(question))):
                 return "check_return_eligibility", {"order_id": record_id}
             if record_id.startswith("T-"):
                 return "query_ticket", {"ticket_id": record_id}
@@ -347,8 +363,11 @@ def build_agent_graph(
     draft_gateway=None,
     tool_runner: AgentToolExecutor = execute_tool,
     evidence_reviewer: EvidenceReviewer | None = None,
+    evidence_review_modes: frozenset[AgentMode] = frozenset({"live"}),
 ):
     """构建一个单 Agent 图；节点由 Python 函数构成，边定义下一步。"""
+    if not evidence_review_modes <= {"mock", "live"}:
+        raise ValueError("证据审查模式只能是 mock 或 live")
 
     def call_model_node(state: AgentGraphState) -> AgentGraphState:
         # 达到上限后不再向模型提供工具，强制进入最终回答，防止无限循环。
@@ -366,6 +385,7 @@ def build_agent_graph(
         counter_name = "simulated_model_requests" if state["mode"] == "mock" else "model_requests"
         updates: AgentGraphState = {
             counter_name: state.get(counter_name, 0) + 1,
+            "retry_model": False,
         }
         if telemetry is not None:
             updates.update({
@@ -385,8 +405,35 @@ def build_agent_graph(
             answer = message.get("content")
             if not isinstance(answer, str) or not answer.strip():
                 raise ValueError("模型没有返回非空最终回答。")
+            required = required_tools(state.get("task_question", ""))
+            completed = {step["tool_name"] for step in state.get("tool_trace", [])
+                         if step.get("result") is not None}
+            missing = required - completed
+            if missing:
+                if offer_tools and state.get("completion_retries", 0) < 1:
+                    updates.update({
+                        "messages": state["messages"] + [{
+                            "role": "system",
+                            "content": "当前问题还缺少已验证的工具结果："
+                            + "、".join(sorted(missing))
+                            + "。请先调用一个缺失的只读工具；不能直接给出订单与政策的联合结论。",
+                        }],
+                        "completion_retries": 1,
+                        "retry_model": True,
+                        "status": "RUNNING",
+                    })
+                    return updates
+                updates.update({
+                    "answer": "尚未同时取得订单信息和政策证据，无法可靠回答这个联合问题。",
+                    "status": "COMPLETED",
+                })
+                return updates
             evidence = state.get("rag_evidence", [])
-            if evidence:
+            if required:
+                answer = grounded_order_policy_answer(
+                    state["task_question"], state.get("tool_trace", []), evidence
+                )
+            elif evidence:
                 answer = append_verified_citations(answer, evidence)
             updates.update({"answer": answer, "status": "COMPLETED"})
             return updates
@@ -409,9 +456,11 @@ def build_agent_graph(
         })
         return updates
 
-    def route_after_model(state: AgentGraphState) -> Literal["read_tool", "propose_change", "end"]:
+    def route_after_model(state: AgentGraphState) -> Literal["read_tool", "propose_change", "retry_model", "end"]:
         if state["status"] == "COMPLETED":
             return "end"
+        if state.get("retry_model"):
+            return "retry_model"
         if state["tool_name"] == "request_priority_change":
             return "propose_change"
         return "read_tool"
@@ -429,14 +478,44 @@ def build_agent_graph(
         if state["tool_name"] == "search_knowledge_base":
             if not isinstance(result, list):
                 raise ValueError("知识库工具结果不符合列表契约。")
-            if result and evidence_reviewer is not None:
-                question = next(
-                    message["content"] for message in reversed(state["messages"])
-                    if message.get("role") == "user"
-                )
-                raw_verdict = evidence_reviewer(question, deepcopy(result))
-                verdict, result = verify_evidence_review(raw_verdict, result)
+            search_args = SearchKnowledgeBaseArgs.model_validate_json(
+                state["arguments_json"]
+            )
+            # 复核模型实际发给检索工具的子问题；复合用户问题可能还包含订单号，
+            # 不能让订单号错误地阻止通用政策片段进入证据审查。
+            question = search_args.query
+            partition = partition_evidence_for_question(question, result)
+            review_candidates = partition["admitted"] + partition["uncertain"]
+            if (
+                review_candidates
+                and evidence_reviewer is not None
+                and state["mode"] in evidence_review_modes
+            ):
+                reviewer_reply = evidence_reviewer(question, deepcopy(review_candidates))
+                if isinstance(reviewer_reply, EvidenceReviewReply):
+                    raw_verdict = reviewer_reply.verdict
+                    telemetry = reviewer_reply.telemetry
+                    review_updates.update({
+                        "model_requests": state.get("model_requests", 0) + 1,
+                        "model_http_attempts": state.get("model_http_attempts", 0)
+                        + telemetry.http_attempts,
+                        "model_retry_count": state.get("model_retry_count", 0)
+                        + telemetry.retry_count,
+                        "model_turn_durations_ms": state.get(
+                            "model_turn_durations_ms", []
+                        ) + [telemetry.duration_ms],
+                        "model_http_attempt_durations_ms": state.get(
+                            "model_http_attempt_durations_ms", []
+                        ) + telemetry.attempt_durations_ms,
+                    })
+                else:
+                    raw_verdict = reviewer_reply
+                verdict, result = verify_evidence_review(raw_verdict, review_candidates)
                 review_updates["evidence_review"] = verdict.model_dump()
+            else:
+                # Mock 和未配置审查器时保持免费、可解释的保守门禁。
+                result = partition["admitted"]
+            result = result[:search_args.limit]
             evidence = evidence + result
         if state["tool_name"] == "check_return_eligibility" and result is not None:
             # 工具结果单独提交为 Checkpoint，恢复追问时不会再次执行查询。
@@ -448,7 +527,8 @@ def build_agent_graph(
                 "tool_trace": trace,
                 "rag_evidence": evidence,
             }
-            if result["decision"] == "REASON_REQUIRED" and state.get("return_reason") is None:
+            if (state.get("apply_requested") and result["decision"] == "REASON_REQUIRED"
+                    and state.get("return_reason") is None):
                 updates.update({
                     "status": "WAITING_REASON",
                     "answer": f"订单 {result['order_id']} 已超过七天无理由期限，请说明退货原因。",
@@ -474,7 +554,8 @@ def build_agent_graph(
 
     def route_after_read(state: AgentGraphState) -> str:
         # 两种可申请资格都先建立服务器草稿：七天内直接进入确认，八至十五天先追问原因。
-        if state.get("return_decision") in {"NO_REASON_ALLOWED", "REASON_REQUIRED"}:
+        if (state.get("apply_requested")
+                and state.get("return_decision") in {"NO_REASON_ALLOWED", "REASON_REQUIRED"}):
             return "prepare_return_draft"
         return "end" if state["status"] == "COMPLETED" else "call_model"
 
@@ -676,7 +757,8 @@ def build_agent_graph(
     builder.add_conditional_edges(
         "call_model",
         route_after_model,
-        {"read_tool": "read_tool", "propose_change": "propose_change", "end": END},
+        {"read_tool": "read_tool", "propose_change": "propose_change",
+         "retry_model": "call_model", "end": END},
     )
     builder.add_conditional_edges(
         "read_tool",
@@ -696,21 +778,50 @@ def build_agent_graph(
     return builder.compile(checkpointer=saver)
 
 
-def start_agent_graph(graph, request: AgentGraphStartRequest) -> AgentGraphResponse:
+def _thread_config(user_id: str, thread_id: str) -> dict:
+    """Checkpoint 的真实键同时包含用户与公开 thread_id，阻止跨用户碰撞和读取。"""
+    checkpoint_id = (
+        thread_id if user_id == "local-demo-user" else f"{user_id}:{thread_id}"
+    )
+    return {"configurable": {"thread_id": checkpoint_id}}
+
+
+def _owned_snapshot(graph, user_id: str, thread_id: str):
+    snapshot = graph.get_state(_thread_config(user_id, thread_id))
+    if (
+        "thread_id" not in snapshot.values
+        or snapshot.values.get("owner_user_id") != user_id
+        or snapshot.values.get("thread_id") != thread_id
+    ):
+        raise AgentGraphNotFoundError(
+            "Agent 工作流不存在、从未启动，或不属于当前用户。"
+        )
+    return snapshot
+
+
+def start_agent_graph(
+    graph,
+    request: AgentGraphStartRequest,
+    user_id: str = "local-demo-user",
+) -> AgentGraphResponse:
     # 用与旧 Agent 相同的系统提示词创建全新消息，避免跨会话污染历史。
     messages = build_initial_messages(request.message)
     # 为这次 HTTP 请求构造 LangGraph 查找和保存 Checkpoint 所需的 thread_id。
-    config = {"configurable": {"thread_id": request.thread_id}}
+    config = _thread_config(user_id, request.thread_id)
     if graph.get_state(config).values:
         raise AgentGraphStateError("该 thread_id 已使用，请恢复已有流程或使用新编号。")
     # 从 START 运行；查询会运行到 END，写操作会运行到 interrupt 后返回。
     state = graph.invoke({
         # 把公开 thread_id 写入内部 State，便于构造稳定的 API 响应。
         "thread_id": request.thread_id,
+        # 所有权来自已认证服务端上下文，绝不接受模型或请求体传入。
+        "owner_user_id": user_id,
         # mode 决定模型网关使用离线模拟还是读取本地密钥请求真实模型。
         "mode": request.mode,
         # State 保存系统提示词和用户问题，后续工具结果会继续追加到这个列表。
         "messages": messages,
+        "task_question": request.message,
+        "apply_requested": wants_return_application(request.message),
         # 工作流刚开始时尚未选择工具，因此状态为 RUNNING。
         "status": "RUNNING",
         "return_reason": request.return_reason,
@@ -718,6 +829,8 @@ def start_agent_graph(graph, request: AgentGraphStartRequest) -> AgentGraphRespo
         # 工具步数与公开轨迹从空开始，最多执行 MAX_TOOL_STEPS 次。
         "tool_steps": 0,
         "tool_trace": [],
+        "completion_retries": 0,
+        "retry_model": False,
         # 累计所有 RAG 结果，最终由程序附加可信引用。
         "rag_evidence": [],
         # 真实模型请求计数从零开始，且不会由 mock 模式增加。
@@ -734,11 +847,14 @@ def start_agent_graph(graph, request: AgentGraphStartRequest) -> AgentGraphRespo
     return _to_response(state)
 
 
-def resume_agent_graph(graph, thread_id: str, request: AgentGraphResumeRequest) -> AgentGraphResponse:
-    config = {"configurable": {"thread_id": thread_id}}
-    snapshot = graph.get_state(config)
-    if "thread_id" not in snapshot.values:
-        raise AgentGraphNotFoundError("Agent 工作流不存在，或该 thread_id 从未启动。")
+def resume_agent_graph(
+    graph,
+    thread_id: str,
+    request: AgentGraphResumeRequest,
+    user_id: str = "local-demo-user",
+) -> AgentGraphResponse:
+    config = _thread_config(user_id, thread_id)
+    snapshot = _owned_snapshot(graph, user_id, thread_id)
     waiting_nodes = {"await_approval", "await_return_confirmation"}
     if not waiting_nodes.intersection(snapshot.next):
         raise AgentGraphStateError("Agent 当前不在等待确认，不能恢复。")
@@ -746,12 +862,15 @@ def resume_agent_graph(graph, thread_id: str, request: AgentGraphResumeRequest) 
     return _to_response(state)
 
 
-def submit_return_reason(graph, thread_id: str, request: ReturnReasonRequest) -> AgentGraphResponse:
+def submit_return_reason(
+    graph,
+    thread_id: str,
+    request: ReturnReasonRequest,
+    user_id: str = "local-demo-user",
+) -> AgentGraphResponse:
     """同一 thread 恢复追问；顺序重复提交被拒绝，不重新执行查询。"""
-    config = {"configurable": {"thread_id": thread_id}}
-    snapshot = graph.get_state(config)
-    if "thread_id" not in snapshot.values:
-        raise AgentGraphNotFoundError("Agent 工作流不存在。")
+    config = _thread_config(user_id, thread_id)
+    snapshot = _owned_snapshot(graph, user_id, thread_id)
     if "finish_reason_collection" in snapshot.next:
         # 原因已存储而预审失败时，只重试只读审核节点，不能偷偷修改之前提交的信息。
         if (snapshot.values.get("return_reason") != request.return_reason
@@ -764,12 +883,15 @@ def submit_return_reason(graph, thread_id: str, request: ReturnReasonRequest) ->
     return _to_response(state)
 
 
-def refresh_return_confirmation(graph, thread_id: str, draft_gateway) -> AgentGraphResponse:
+def refresh_return_confirmation(
+    graph,
+    thread_id: str,
+    draft_gateway,
+    user_id: str = "local-demo-user",
+) -> AgentGraphResponse:
     """用最新订单重建草稿，并让同一会话重新进入人工确认或原因追问。"""
-    config = {"configurable": {"thread_id": thread_id}}
-    snapshot = graph.get_state(config)
-    if "thread_id" not in snapshot.values:
-        raise AgentGraphNotFoundError("Agent 工作流不存在。")
+    config = _thread_config(user_id, thread_id)
+    snapshot = _owned_snapshot(graph, user_id, thread_id)
     if snapshot.values.get("status") != "STALE_CONFIRMATION":
         raise AgentGraphStateError("只有确认内容已失效的退货流程才能刷新。")
 
@@ -822,12 +944,14 @@ def refresh_return_confirmation(graph, thread_id: str, draft_gateway) -> AgentGr
     return _to_response(state)
 
 
-def get_agent_graph_state(graph, thread_id: str, draft_gateway=None) -> AgentGraphResponse:
+def get_agent_graph_state(
+    graph,
+    thread_id: str,
+    draft_gateway=None,
+    user_id: str = "local-demo-user",
+) -> AgentGraphResponse:
     """读取已保存的 State，供前端刷新、轮询或恢复页面时展示当前运行状态。"""
-    config = {"configurable": {"thread_id": thread_id}}
-    snapshot = graph.get_state(config)
-    if "thread_id" not in snapshot.values:
-        raise AgentGraphNotFoundError("Agent 工作流不存在，或该 thread_id 从未启动。")
+    snapshot = _owned_snapshot(graph, user_id, thread_id)
     if (snapshot.values.get("status") in {"WAITING_REASON", "WAITING_CONFIRMATION"}
             and snapshot.values.get("return_draft") and draft_gateway):
         draft = draft_gateway.get(snapshot.values["order_id"], snapshot.values["return_draft"]["draft_id"])
