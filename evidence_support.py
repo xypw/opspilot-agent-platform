@@ -53,10 +53,12 @@ _BUSINESS_IDENTIFIER = re.compile(
     r"(?<![a-z0-9_-])[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+(?![a-z0-9_-])",
     re.IGNORECASE,
 )
+# 规则与语义审查共用服务端业务约定；不能由用户或检索文档修改。
+TICKET_HIGH_PRIORITY_ALIASES = ("高优先级", "紧急")
 # 工单域把“紧急级别”解释为高优先级；退款的紧急/普通等级单独约束。
 _QUALIFIERS = {
     "ticket": {
-        "high": re.compile(r"高优先级|紧急"),
+        "high": re.compile("|".join(re.escape(term) for term in TICKET_HIGH_PRIORITY_ALIASES)),
         "normal": re.compile(r"普通"),
     },
     "refund": {

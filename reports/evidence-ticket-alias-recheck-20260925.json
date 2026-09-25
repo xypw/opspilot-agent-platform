@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-25T09:01:26.482854+00:00",
+    "mode": "live-review-failure-recheck",
+    "dataset_role": "regression",
+    "model": "glm-4.7-flash",
+    "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    "cases_sha256": "3bf676e24e73b01f76e5d7ec0b8bd72a1bba61b8b7133af4461a9344ca939bae",
+    "planned_case_ids": [
+      "h06_high_ticket_synonym"
+    ],
+    "source_sha256": {
+      "evidence_review.py": "35ab4ca8adb216205d6857a4ef0a611cf69870e370b9eeb9b3ecaab4752228a5",
+      "evidence_support.py": "ed6f99813aceabfc2233e240f4e34a86a511825754c3da98d2595332d8aa79e2",
+      "evidence_holdout_evaluation.py": "528661f22a2e6d5d0ee568fbf18146607691ef35c9e04b9816cd39007e07f2da",
+      "retry_policy.py": "bd09e180c3968aa5ae5cadf471de5e5182f34c12ec5d6b3537827fb3e98a7e0b",
+      "preview_tool_call.py": "cb02e99d09edcbcc4c594f64da710218acc3e72cc8db6a18ae38891199837f3e",
+      "model_rate_limit.py": "46f3f15384c88df0988a3ec42d10b818e88495a0f23bb8dcfc7c41402c8c4019"
+    }
+  },
+  "summary": {
+    "planned_cases": 1,
+    "completed_cases": 1,
+    "not_run_case_ids": [],
+    "model_http_attempts": 1,
+    "review_errors": 0,
+    "valid_correct_cases": 0,
+    "stopped_on_429": false
+  },
+  "results": [
+    {
+      "case_id": "h06_high_ticket_synonym",
+      "expected_sufficient": true,
+      "gate_decision": "admit",
+      "gate_reason": "matched_required_facts",
+      "required_answer_types": [
+        "timing"
+      ],
+      "provided_answer_types": [
+        "timing"
+      ],
+      "predicted_sufficient": false,
+      "outcome": "fn",
+      "selected_chunk_ids": [],
+      "review_verdict": {
+        "supported": false,
+        "supporting_quotes": [],
+        "missing_information": "根据服务端业务约定，仅在本演示业务的工单优先级中，“高优先级”与“紧急”（包括紧急级别）指同一等级，但该同义约定不适用于退款等级或其他业务，也不能补充响应时间、流程等缺失事实。因此，仅凭“紧急级别的工单须在二十分钟内首次响应”无法直接支持回答“高优先级工单多久响应？”，缺少关于“高优先级”工单具体响应时间的直接支持信息。"
+      },
+      "error": null,
+      "model_http_attempts": 1,
+      "duration_ms": 9607.865
+    }
+  ]
+}

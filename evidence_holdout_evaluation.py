@@ -6,6 +6,7 @@ from copy import deepcopy
 from collections.abc import Callable
 import httpx
 from preview_tool_call import ModelAPIError
+from model_rate_limit import ModelAdmissionError
 from evidence_review import EvidenceReviewer, EvidenceReviewReply, verify_evidence_review
 from evidence_support import (
     assess_evidence_for_question,
@@ -69,6 +70,7 @@ def evaluate_evidence_holdout(
                 selected = []
             else:
                 reviewer_calls += 1
+                review_stage = "reviewer_call"
                 try:
                     reply = reviewer(question, deepcopy(reviewable))
                     if isinstance(reply, EvidenceReviewReply):
@@ -77,14 +79,22 @@ def evaluate_evidence_holdout(
                         duration_ms = reply.telemetry.duration_ms
                     else:
                         raw_verdict = reply
+                    review_stage = "verdict_validation"
                     verdict, selected = verify_evidence_review(raw_verdict, reviewable)
                     predicted = verdict.supported
-                except (ValueError, httpx.HTTPError, OSError) as error:
+                except (ValueError, httpx.HTTPError, OSError, ModelAdmissionError) as error:
                     if not capture_review_errors:
                         raise
                     attempts = attempts or getattr(error, "model_http_attempts", 0)
                     duration_ms = duration_ms or sum(getattr(error, "model_turn_durations_ms", []))
                     error_info = {"type": type(error).__name__}
+                    # 只保存枚举阶段，不写异常原文、请求头或模型原始响应。
+                    stage = getattr(error, "evidence_review_stage", review_stage)
+                    error_info["stage"] = stage if stage in {
+                        "model_request", "response_parse", "verdict_validation", "reviewer_call"
+                    } else "reviewer_call"
+                    if isinstance(error, ModelAdmissionError):
+                        error_info["stage"] = "model_admission"
                     if isinstance(error, ModelAPIError):
                         error_info["status_code"] = error.status_code
                         error_info["provider_error_code"] = error.provider_code
