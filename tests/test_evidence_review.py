@@ -29,6 +29,13 @@ UNSUPPORTED = {"supported": False, "supporting_quotes": [], "missing_information
 
 
 class EvidenceReviewTests(unittest.TestCase):
+    def test_only_relevant_domain_policy_is_injected_and_requested_detail_controls_review(self):
+        messages = build_evidence_review_messages("如何办理？", CANDIDATES)
+        self.assertNotIn("工单", messages[0]["content"])
+        self.assertIn("只核对用户实际询问的信息", messages[0]["content"])
+        self.assertIn("缺少该项信息仍判不足", messages[0]["content"])
+        self.assertIn("不能代替操作流程", messages[0]["content"])
+
     def test_reviewer_uses_the_same_trusted_ticket_aliases_as_rules(self):
         candidates = [{"chunk_id": "ticket", "content": "紧急级别工单二十分钟内响应。"}]
         messages = build_evidence_review_messages("高优先级工单多久响应？", candidates)

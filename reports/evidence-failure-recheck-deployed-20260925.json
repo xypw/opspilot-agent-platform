@@ -1,0 +1,125 @@
+{
+  "metadata": {
+    "generated_at": "2026-09-25T15:56:29.281286+00:00",
+    "mode": "live-review-failure-recheck",
+    "dataset_role": "regression",
+    "model": "glm-4.7-flash",
+    "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    "cases_sha256": "3bf676e24e73b01f76e5d7ec0b8bd72a1bba61b8b7133af4461a9344ca939bae",
+    "planned_case_ids": [
+      "h15_return_from_warranty",
+      "h06_high_ticket_synonym",
+      "h09_invoice_process_paraphrase",
+      "h17_process_from_status"
+    ],
+    "source_sha256": {
+      "evidence_review.py": "fba4c2913c0723c449f1fe0b1043f540bc2b9475486800106fe47d89047b5a16",
+      "evidence_support.py": "ed6f99813aceabfc2233e240f4e34a86a511825754c3da98d2595332d8aa79e2",
+      "evidence_holdout_evaluation.py": "528661f22a2e6d5d0ee568fbf18146607691ef35c9e04b9816cd39007e07f2da",
+      "retry_policy.py": "bd09e180c3968aa5ae5cadf471de5e5182f34c12ec5d6b3537827fb3e98a7e0b",
+      "preview_tool_call.py": "cb02e99d09edcbcc4c594f64da710218acc3e72cc8db6a18ae38891199837f3e",
+      "model_rate_limit.py": "46f3f15384c88df0988a3ec42d10b818e88495a0f23bb8dcfc7c41402c8c4019"
+    }
+  },
+  "summary": {
+    "planned_cases": 4,
+    "completed_cases": 4,
+    "not_run_case_ids": [],
+    "model_http_attempts": 3,
+    "review_errors": 1,
+    "valid_correct_cases": 3,
+    "stopped_on_429": false
+  },
+  "results": [
+    {
+      "case_id": "h15_return_from_warranty",
+      "expected_sufficient": false,
+      "gate_decision": "reject",
+      "gate_reason": "scope_conflict",
+      "required_answer_types": [
+        "eligibility"
+      ],
+      "provided_answer_types": [],
+      "predicted_sufficient": false,
+      "outcome": "tn",
+      "selected_chunk_ids": [],
+      "review_verdict": null,
+      "error": null,
+      "model_http_attempts": 0,
+      "duration_ms": 0.0
+    },
+    {
+      "case_id": "h06_high_ticket_synonym",
+      "expected_sufficient": true,
+      "gate_decision": "admit",
+      "gate_reason": "matched_required_facts",
+      "required_answer_types": [
+        "timing"
+      ],
+      "provided_answer_types": [
+        "timing"
+      ],
+      "predicted_sufficient": true,
+      "outcome": "tp",
+      "selected_chunk_ids": [
+        "h06"
+      ],
+      "review_verdict": {
+        "supported": true,
+        "supporting_quotes": [
+          {
+            "chunk_id": "h06",
+            "text": "紧急级别的工单须在二十分钟内首次响应。"
+          }
+        ],
+        "missing_information": ""
+      },
+      "error": null,
+      "model_http_attempts": 1,
+      "duration_ms": 8309.297
+    },
+    {
+      "case_id": "h09_invoice_process_paraphrase",
+      "expected_sufficient": true,
+      "gate_decision": "admit",
+      "gate_reason": "matched_required_facts",
+      "required_answer_types": [
+        "procedure"
+      ],
+      "provided_answer_types": [
+        "procedure"
+      ],
+      "predicted_sufficient": false,
+      "outcome": "fn",
+      "selected_chunk_ids": [],
+      "review_verdict": null,
+      "error": {
+        "type": "ValueError",
+        "stage": "response_parse"
+      },
+      "model_http_attempts": 1,
+      "duration_ms": 7347.005
+    },
+    {
+      "case_id": "h17_process_from_status",
+      "expected_sufficient": false,
+      "gate_decision": "uncertain",
+      "gate_reason": "missing_required_facts",
+      "required_answer_types": [
+        "procedure"
+      ],
+      "provided_answer_types": [],
+      "predicted_sufficient": false,
+      "outcome": "tn",
+      "selected_chunk_ids": [],
+      "review_verdict": {
+        "supported": false,
+        "supporting_quotes": [],
+        "missing_information": "候选片段未提供任何关于如何申请退款的具体流程或方法。"
+      },
+      "error": null,
+      "model_http_attempts": 1,
+      "duration_ms": 12967.428
+    }
+  ]
+}
