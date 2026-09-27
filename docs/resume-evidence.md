@@ -18,6 +18,7 @@
 | 新入口页面 1 项交互测试与 Java 服务 34 项测试 | `static/service.test.cjs`、`tests/test_service_api.py`、`business-service/src/test/`；2026-09-23 本地结果 | 页面测试用模拟 HTTP；Java 测试有 2 项跳过，未证明跨服务部署成功 |
 | 本机 Python→Java 显式售后链路通过 | `scripts/smoke_service_java.py`；2026-09-23 本地 Java 内存服务冒烟 | 覆盖订单、资格、草稿、409 和确认；鉴权关闭，仅证明本地接口契约，不证明生产部署或模型质量 |
 | 20 条改写集的真实证据审查：充分证据接纳 7/10，有效且正确 15/20 | `reports/evidence-holdout-live-review-20260919.json` 及同名 JSONL；`reports/2026-09-19-evidence-review.md` | 1 条语义误拒和 4 条运行失败；不能写成 17/20 正确或零误拒，不能声称完整 RAG 或 Agent 端到端成功率 |
+| 2026-09-26 规则门禁与真实模型证据审查：旧回归集 20/20，新冻结集 16/20 | `evaluation_data/evidence_frozen_20260926.json`、`reports/evidence-bounded-20260926-r1.json`、同名 JSONL 和 [逐例分析](../reports/evidence-bounded-20260926-r1.md) | 新集 2 例误拒、1 例误接纳、1 例运行失败；标签为模型辅助设计，未独立人工复核，不代表完整 Agent 成功率或线上泛化能力 |
 
 任何简历数字调整前先重跑对应脚本并保存原始报告，禁止把 mock、规则基线或单元测试通过率改写成真实模型准确率。
 
