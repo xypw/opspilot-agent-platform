@@ -1,0 +1,81 @@
+{
+  "frozen_at": "2026-09-26T03:23:21.035615+00:00",
+  "mode": "bounded-live-review",
+  "model": "glm-4.7-flash",
+  "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+  "max_cases": 40,
+  "max_http_attempts": 120,
+  "per_review_http_attempts": 3,
+  "request_interval_seconds": 5.0,
+  "datasets": {
+    "regression": {
+      "file": "evidence_holdout_cases.json",
+      "sha256": "3bf676e24e73b01f76e5d7ec0b8bd72a1bba61b8b7133af4461a9344ca939bae",
+      "case_count": 20,
+      "case_ids": [
+        "h01_refund_process_paraphrase",
+        "h02_refund_timing_colloquial",
+        "h03_invoice_destination_paraphrase",
+        "h04_return_eligibility_paraphrase",
+        "h05_payment_code_exact",
+        "h06_high_ticket_synonym",
+        "h07_cancel_process_paraphrase",
+        "h08_refund_destination_paraphrase",
+        "h09_invoice_process_paraphrase",
+        "h10_membership_expiry",
+        "h11_process_from_timing",
+        "h12_invoice_destination_from_eligibility",
+        "h13_wrong_payment_identifier",
+        "h14_urgent_from_standard",
+        "h15_return_from_warranty",
+        "h16_timing_from_contact",
+        "h17_process_from_status",
+        "h18_destination_from_vague_status",
+        "h19_eligibility_from_amount",
+        "h20_high_ticket_from_normal"
+      ]
+    },
+    "holdout": {
+      "file": "evidence_frozen_20260926.json",
+      "sha256": "2b545fc0dc2775aecb3e788864ba111e9d4e8a95bb4f849455a6a0118e2a946a",
+      "case_count": 20,
+      "case_ids": [
+        "f20260926_01_refund_entry_synonym",
+        "f20260926_02_refund_clock_trigger",
+        "f20260926_03_refund_original_channel",
+        "f20260926_04_invoice_delivery_synonym",
+        "f20260926_05_return_known_receipt_age",
+        "f20260926_06_payment409_repeat_charge",
+        "f20260926_07_expedited_ticket_alias",
+        "f20260926_08_invoice_entry_and_fields",
+        "f20260926_09_points_start_and_duration",
+        "f20260926_10_injection_with_valid_evidence",
+        "f20260926_11_refund_steps_from_status",
+        "f20260926_12_order_status_from_procedure",
+        "f20260926_13_total_duration_missing_review_time",
+        "f20260926_14_wrong_payment_code",
+        "f20260926_15_priority_mismatch",
+        "f20260926_16_missing_receipt_age",
+        "f20260926_17_ambiguous_mailbox_reference",
+        "f20260926_18_partial_invoice_answer",
+        "f20260926_19_form_fields_from_amount",
+        "f20260926_20_injection_without_status_evidence"
+      ]
+    }
+  },
+  "source_sha256": {
+    "scripts/run_bounded_evidence_batch.py": "9d5c9ab00b33a78a503d562278420b61d66483d04816dc9c92cf02febcb88abc",
+    "evidence_review.py": "dc5725fd4c1d77abffdd09b09137f3ad8c956146161cf4e1011b79f465077e75",
+    "evidence_support.py": "ed6f99813aceabfc2233e240f4e34a86a511825754c3da98d2595332d8aa79e2",
+    "evidence_holdout_evaluation.py": "528661f22a2e6d5d0ee568fbf18146607691ef35c9e04b9816cd39007e07f2da",
+    "retry_policy.py": "bd09e180c3968aa5ae5cadf471de5e5182f34c12ec5d6b3537827fb3e98a7e0b",
+    "preview_tool_call.py": "cb02e99d09edcbcc4c594f64da710218acc3e72cc8db6a18ae38891199837f3e",
+    "model_rate_limit.py": "46f3f15384c88df0988a3ec42d10b818e88495a0f23bb8dcfc7c41402c8c4019",
+    "tool_schema.py": "0cb08f4a0339b4873ca9f51f5bd39220057206c4536446e6e87df45e58469671"
+  },
+  "notes": [
+    "regression 与 holdout 分开计分；运行错误和未运行不算正确。",
+    "只外发虚构问题、候选 chunk_id/content 和审查提示；不外发标签或源码。",
+    "holdout 角色由调用方声明；本入口不能证明未参与开发。"
+  ]
+}
