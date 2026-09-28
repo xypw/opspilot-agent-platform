@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 import tool_executor
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -48,15 +48,20 @@ from checkpoint_store import (
     RunStateError,
 )
 from document_ingestion import ingest_pdf
-from document_models import DocumentIngestionResponse
+from document_models import DocumentIngestionResponse, DocumentPublishRequest, DocumentPublishResponse
 from document_parser import PDFNeedsOCRError
 from evidence_review import ConfiguredEvidenceReviewer
 from knowledge_base import (
     DuplicateDocumentError,
     KnowledgeStoreUnavailableError,
+    ReviewConflictError,
+    ReviewDocumentNotFoundError,
+    get_pending_document,
     index_uploaded_document,
+    publish_pending_pages,
     search_knowledge_base,
     search_knowledge_candidates,
+    stage_uploaded_document,
 )
 from knowledge_models import KnowledgeSearchRequest, KnowledgeSearchResult
 from langgraph_checkpointer import build_agent_checkpointer
@@ -236,12 +241,12 @@ def health() -> dict[str, str]:
 @app.post(
     "/documents/upload",
     response_model=DocumentIngestionResponse,
-    summary="上传、解析并切分 PDF 文档",
+    summary="上传 PDF；低可信内容先进入待审核区",
     responses={
         400: {"description": "PDF 无法读取或格式无效"},
         413: {"description": "文件超过 10 MB"},
         415: {"description": "当前只支持 PDF"},
-        422: {"description": "字段无效或整份 PDF 需要 OCR"},
+        422: {"description": "请求字段无效或文档未通过发布校验"},
         409: {"description": "文档编号已存在"},
         503: {"description": "知识库存储暂不可用"},
     },
@@ -271,15 +276,68 @@ async def upload_document(
         raise HTTPException(status_code=422, detail=str(error)) from None
     except ValueError:
         raise HTTPException(status_code=400, detail="PDF 文件无法读取或格式无效") from None
-    if not result["chunks"]:
-        raise HTTPException(status_code=422, detail="文档没有可索引的文字")
     try:
-        index_uploaded_document(result, filename)
+        if result["status"] == "ready":
+            if not result["chunks"]:
+                raise HTTPException(status_code=422, detail="文档没有可索引的文字")
+            index_uploaded_document(result, filename, content)
+        else:
+            stage_uploaded_document(result, filename, content)
     except DuplicateDocumentError:
         raise HTTPException(status_code=409, detail="文档或片段编号已存在") from None
+    except ReviewConflictError:
+        raise HTTPException(status_code=422, detail="文档尚未通过发布校验") from None
     except KnowledgeStoreUnavailableError:
         raise HTTPException(status_code=503, detail="知识库暂时无法保存文档") from None
     return result
+
+
+@app.get("/documents/{document_id}/review", summary="查看待审核页面和切块记录")
+def get_document_review(
+    document_id: str, user: AuthenticatedUser = Depends(authenticate_request),
+) -> dict:
+    require_role(user, "knowledge_admin")
+    try:
+        item = get_pending_document(document_id)
+    except ReviewDocumentNotFoundError:
+        raise HTTPException(status_code=404, detail="待审核文档不存在") from None
+    except KnowledgeStoreUnavailableError:
+        raise HTTPException(status_code=503, detail="待审核文档暂不可读取") from None
+    return {"result": item["result"], "approved_pages": item["approved_pages"],
+            "review_events": item["review_events"]}
+
+
+@app.get("/documents/{document_id}/source", summary="下载待审核 PDF 原件")
+def get_document_source(
+    document_id: str, user: AuthenticatedUser = Depends(authenticate_request),
+) -> Response:
+    require_role(user, "knowledge_admin")
+    try:
+        item = get_pending_document(document_id)
+    except ReviewDocumentNotFoundError:
+        raise HTTPException(status_code=404, detail="待审核文档不存在") from None
+    except KnowledgeStoreUnavailableError:
+        raise HTTPException(status_code=503, detail="待审核文档暂不可读取") from None
+    return Response(content=bytes(item["source_pdf"]), media_type="application/pdf")
+
+
+@app.post(
+    "/documents/{document_id}/publish", response_model=DocumentPublishResponse,
+    summary="人工核对原件后按页发布已批准片段",
+)
+def publish_document_pages(
+    document_id: str, request: DocumentPublishRequest,
+    user: AuthenticatedUser = Depends(authenticate_request),
+) -> dict:
+    require_role(user, "knowledge_admin")
+    try:
+        return publish_pending_pages(document_id, request.pages, user.user_id)
+    except ReviewDocumentNotFoundError:
+        raise HTTPException(status_code=404, detail="待审核文档不存在") from None
+    except ReviewConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from None
+    except KnowledgeStoreUnavailableError:
+        raise HTTPException(status_code=503, detail="知识库暂时无法发布文档") from None
 
 
 @app.get(

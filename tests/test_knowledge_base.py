@@ -9,6 +9,7 @@ import psycopg
 from knowledge_base import (
     DuplicateDocumentError,
     KnowledgeStoreUnavailableError,
+    ReviewConflictError,
     index_knowledge_chunks,
     index_uploaded_document,
     load_min_semantic_similarity,
@@ -51,6 +52,26 @@ class KnowledgeBaseTests(unittest.TestCase):
             document_id="refund", title="退款制度", source_filename="refund.pdf",
             page_count=1, chunks=chunks,
         )
+
+    def test_partial_document_cannot_use_direct_index_entry(self):
+        result = {"document_id": "partial", "status": "partial", "title": "待审核",
+                  "page_count": 1, "chunks": [{"chunk_id": "partial-p1-c0", "page": 1,
+                                                "content": "未经审核"}]}
+        with patch("knowledge_base.index_knowledge_chunks") as index:
+            with self.assertRaises(ReviewConflictError):
+                index_uploaded_document(result, "partial.pdf")
+        index.assert_not_called()
+
+    def test_page_review_flag_blocks_direct_index_even_if_status_is_ready(self):
+        result = {"document_id": "flagged", "status": "ready", "title": "待复核",
+                  "page_count": 1,
+                  "pages": [{"page": 1, "validation_status": "needs_review"}],
+                  "chunks": [{"chunk_id": "flagged-p1-c0", "page": 1,
+                              "content": "不得退货", "validation_status": "validated"}]}
+        with patch("knowledge_base.index_knowledge_chunks") as index:
+            with self.assertRaises(ReviewConflictError):
+                index_uploaded_document(result, "flagged.pdf")
+        index.assert_not_called()
 
     def test_postgres_unique_violation_becomes_duplicate_document_error(self):
         store = Mock()

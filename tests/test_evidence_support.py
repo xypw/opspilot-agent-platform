@@ -39,6 +39,14 @@ class EvidenceSupportTests(unittest.TestCase):
         self.assertEqual(filter_evidence_for_question("我应该怎么退款", timing), [])
         self.assertEqual(filter_evidence_for_question("退款多久到账", timing), timing)
 
+    def test_pdf_spacing_between_number_and_unit_still_supports_timing(self):
+        urgent = [{"chunk_id": "urgent", "content":
+                   "紧急退款：标记为紧急且审核通过后，预计 3 小时内到账。"}]
+        ordinary = [{"chunk_id": "ordinary", "content":
+                     "普通退款：审核通过后，预计 3 个工作日内到账。"}]
+        self.assertEqual(filter_evidence_for_question("紧急退款多久到账？", urgent), urgent)
+        self.assertEqual(filter_evidence_for_question("紧急退款多久到账？", ordinary), [])
+
     def test_submitted_status_is_not_an_instruction(self):
         status = [{
             "chunk_id": "status",

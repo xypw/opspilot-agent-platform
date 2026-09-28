@@ -95,7 +95,7 @@ _PROCEDURE_EVIDENCE = re.compile(
 _HISTORICAL_ACTION = re.compile(r"(?:已|已经)(?:发起|提交|受理|完成|打开|进入)")
 _EVIDENCE_TYPES = {
     "timing": re.compile(
-        r"[0-9一二两三四五六七八九十百]+个?(?:工作日|分钟|小时|天|日|周|月)"
+        r"[0-9一二两三四五六七八九十百]+\s*个?\s*(?:工作日|分钟|小时|天|日|周|月)"
         r"|立即|实时|当天|次日|\d{4}年\d{1,2}月\d{1,2}日"
     ),
     "destination": re.compile(

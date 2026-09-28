@@ -77,6 +77,8 @@ services:
     ports:
       - "8011:8011"
     environment:
+      # 与下方持久卷一致，避免 FastEmbed 默认写入容器临时 /tmp 后反复下载。
+      FASTEMBED_CACHE_PATH: /home/opspilot/.cache/fastembed
       REDIS_URL: redis://redis:6379/0
       CHECKPOINT_TTL_MINUTES: ${CHECKPOINT_TTL_MINUTES:-1440}
       MODEL_RATE_LIMIT_REQUESTS: ${MODEL_RATE_LIMIT_REQUESTS:-20}

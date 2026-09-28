@@ -181,13 +181,16 @@ class ApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), result)
+        self.assertEqual(response.json()["document_id"], result["document_id"])
+        self.assertEqual(response.json()["publication_status"], "published")
+        self.assertEqual(response.json()["chunks"][0]["content"],
+                         result["chunks"][0]["content"])
         source = ingest.call_args.args[0]
         self.assertEqual(source.read(), b"fake-pdf")
         self.assertEqual(ingest.call_args.kwargs, {
             "document_id": "refund-policy", "title": "售后与退款制度",
         })
-        index_document.assert_called_once_with(result, "policy.pdf")
+        index_document.assert_called_once_with(result, "policy.pdf", b"fake-pdf")
 
     def test_duplicate_document_id_returns_409_without_hiding_conflict(self):
         result = {
@@ -290,6 +293,78 @@ class ApiTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 415)
         ingest.assert_not_called()
+
+    def test_partial_upload_is_staged_without_indexing(self):
+        result = {
+            "document_id": "pending-api", "title": "待审核政策", "status": "partial",
+            "publication_status": "pending_review", "page_count": 2, "chunk_count": 1,
+            "ocr_required_pages": [2],
+            "pages": [{"page": 1, "text": "退款三个工作日到账", "validation_status": "needs_review",
+                       "validation_reasons": ["unusually_short_text"], "parser_version": "pdf-pypdf-v2"},
+                      {"page": 2, "text": "", "validation_status": "needs_review",
+                       "validation_reasons": ["needs_ocr"], "parser_version": "pdf-pypdf-v2"}],
+            "chunks": [{"chunk_id": "pending-api-p1-c0", "title": "待审核政策", "page": 1,
+                        "content": "退款三个工作日到账", "extraction_method": "text",
+                        "validation_status": "needs_review", "ocr_confidence": None}],
+        }
+        with (
+            patch("main.ingest_pdf", return_value=result),
+            patch("main.index_uploaded_document") as index_document,
+            patch("main.stage_uploaded_document") as stage_document,
+        ):
+            response = self.client.post(
+                "/documents/upload",
+                data={"document_id": "pending-api", "title": "待审核政策"},
+                files={"file": ("policy.pdf", b"fake-pdf", "application/pdf")},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["publication_status"], "pending_review")
+        index_document.assert_not_called()
+        stage_document.assert_called_once_with(result, "policy.pdf", b"fake-pdf")
+
+    def test_reviewed_page_only_is_published_and_duplicate_approval_is_blocked(self):
+        result = {
+            "document_id": "review-flow", "title": "退货政策", "status": "partial",
+            "publication_status": "pending_review", "page_count": 2, "chunk_count": 1,
+            "ocr_required_pages": [2],
+            "pages": [{"page": 1, "text": "退款将在三个工作日内到账。",
+                       "validation_status": "needs_review", "validation_reasons": ["manual_review"],
+                       "parser_version": "pdf-pypdf-v2"},
+                      {"page": 2, "text": "", "validation_status": "needs_review",
+                       "validation_reasons": ["needs_ocr"], "parser_version": "pdf-pypdf-v2"}],
+            "chunks": [{"chunk_id": "review-flow-p1-c0", "title": "退货政策", "page": 1,
+                        "content": "退款将在三个工作日内到账。", "extraction_method": "text",
+                        "ocr_confidence": None, "validation_status": "needs_review"}],
+        }
+        store = InMemoryVectorStore(FakeEmbeddingService())
+        with (
+            patch("main.ingest_pdf", return_value=result),
+            patch("knowledge_base.VECTOR_STORE", store),
+            patch("knowledge_base._PENDING_DOCUMENTS", {}),
+            patch("knowledge_base.RERANKER", None),
+        ):
+            upload = self.client.post(
+                "/documents/upload", data={"document_id": "review-flow", "title": "退货政策"},
+                files={"file": ("policy.pdf", b"fake-pdf", "application/pdf")},
+            )
+            before = self.client.post("/knowledge/search",
+                                      json={"query": "退款多久到账", "limit": 3})
+            review = self.client.get("/documents/review-flow/review")
+            source = self.client.get("/documents/review-flow/source")
+            publish = self.client.post("/documents/review-flow/publish", json={"pages": [1]})
+            after = self.client.post("/knowledge/search",
+                                     json={"query": "退款多久到账", "limit": 3})
+            duplicate = self.client.post("/documents/review-flow/publish", json={"pages": [1]})
+            empty = self.client.post("/documents/review-flow/publish", json={"pages": [2]})
+        self.assertEqual(upload.status_code, 200)
+        self.assertTrue(all(item["chunk_id"] != "review-flow-p1-c0" for item in before.json()))
+        self.assertEqual(review.json()["result"]["pages"][0]["text"], result["pages"][0]["text"])
+        self.assertEqual(source.content, b"fake-pdf")
+        self.assertEqual(publish.status_code, 200)
+        self.assertEqual(publish.json()["remaining_pages"], [2])
+        self.assertEqual(after.json()[0]["chunk_id"], "review-flow-p1-c0")
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(empty.status_code, 409)
 
     def test_scan_only_pdf_reports_ocr_requirement(self):
         with patch("main.ingest_pdf", side_effect=PDFNeedsOCRError("需要先进行 OCR")):
