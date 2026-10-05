@@ -88,7 +88,7 @@ class AuthenticationBoundaryTests(unittest.TestCase):
                 headers={"Authorization": f"Bearer {TOKEN_A}"},
                 json={
                     "thread_id": thread_id,
-                    "message": "查询工单 T-1001",
+                    "message": "查询订单 O-2001",
                     "mode": "mock",
                 },
             )

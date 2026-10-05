@@ -89,6 +89,7 @@ from priority_change_graph import (
 )
 from runtime_store_factory import build_runtime_stores
 from tool_args import RequestPriorityChangeArgs
+from tool_policy import ToolDisabledError
 
 app = FastAPI(
     title="OpsPilot 售后知识与业务服务",
@@ -162,6 +163,11 @@ async def handle_return_order_changed(request, error: ReturnOrderChanged):
     return JSONResponse(status_code=409, content={
         "detail": {"code": "ORDER_CHANGED", "message": str(error)},
     })
+
+
+@app.exception_handler(ToolDisabledError)
+async def handle_disabled_tool(request, error: ToolDisabledError):
+    return JSONResponse(status_code=403, content={"detail": str(error)})
 
 # 运行时只创建一次 Store，并让 FastAPI 路由和 Tool Executor 共享同一实例。
 # REDIS_URL 已配置但 Redis 不可用时 build_runtime_stores 会抛错，阻止“假持久化”启动。

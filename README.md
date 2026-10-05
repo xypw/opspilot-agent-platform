@@ -43,6 +43,7 @@ flowchart LR
 - 当问题同时包含订单编号和政策、流程或时效，Agent 逐步选择订单查询与知识检索；每轮至多执行一个受控工具，工具步数最多 3 次。用户可在 `/demo` 查看工具轨迹。
 - 联合问题只有同时取得有效订单结果和经门禁筛选的政策片段才算完成。模型提前给结论时提醒其补足缺失的只读工具一次；仍未补足则拒答。
 - 最终联合回答由程序使用已校验的订单字段、政策原文与页码组装。通用退款时效不会被说成该订单已有确定到账日期。
+- 普通知识问答也从核验后的摘录确定性组装，不沿用模型自由生成的事实再追加引用。证据审查通过的完整集合若超过返回上限，则报告证据不足，不能截去必要片段后仍宣称充分。
 - 问“这笔订单能否退货”只查询 Java 资格；明确要求办理时才创建草稿并等待人工确认。申请写入仍由 Java 判定。简单查询或用户已明确选择的办理步骤也可使用 `/service` 直达接口。
 
 ### RAG 与证据引用
@@ -64,6 +65,7 @@ flowchart LR
 - `/service/orders/{order_id}`、资格与草稿接口直接调用 Java；Java 重新认证调用链、校验订单归属、资格、金额和状态。
 - 确认接口要求提交页面展示的商品、金额和有效期快照；Java 在事务中再次校验。
 - 用户消息、PDF 和工具输出一律作为不可信数据；其中的“忽略规则”或“直接改数据库”等内容不会改变工具白名单、权限或确认状态。
+- 启用鉴权时，未实现工单归属授权的旧 `query_ticket`、`request_priority_change` 工具停用：不提供给模型，实际执行和旧检查点读取/恢复也拒绝。关闭鉴权的本地教学模式保留这些虚构工单流程。
 
 ### 人工确认与一致性
 
@@ -108,10 +110,18 @@ Compose 将 FastEmbed 的模型缓存目录设为现有持久卷路径，避免 
 $env:REDIS_URL=' '
 $env:TICKET_REPOSITORY_BACKEND='memory'
 $env:ORDER_QUERY_BACKEND='memory'
+$env:KNOWLEDGE_STORE_BACKEND='memory'
 $env:OPSPILOT_AUTH_REQUIRED='false'
+$env:MODEL_RATE_LIMIT_REQUESTS='0'
+$env:SILICONFLOW_API_KEY=' '
+$env:RUN_REDIS_INTEGRATION='0'
+$env:RUN_REDIS_RATE_LIMIT_INTEGRATION='0'
+$env:RUN_POSTGRES_INTEGRATION='0'
 .\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
 node --test static/demo.test.cjs static/service.test.cjs
 ```
+
+本轮 [工具授权与证据链路修复验证](reports/review-fixes-20261005.md) 记录了 501 项 Python 测试通过、7 项集成测试跳过、4 项页面测试通过，以及 8 条隔离模拟流程无退化；未调用真实模型。
 
 Java 服务测试：
 

@@ -32,6 +32,7 @@ from retry_policy import ModelRequestTelemetry, request_message_with_retry
 from tool_args import RequestPriorityChangeArgs, SearchKnowledgeBaseArgs
 from tool_executor import execute_tool
 from tool_messages import build_tool_message
+from tool_policy import require_tool_enabled
 from return_review_client import ReasonCode, ReturnReviewRequest, ReturnReviewResponse
 from return_draft_client import (
     ReturnApplicationResponse,
@@ -375,6 +376,7 @@ def build_agent_graph(
         raise ValueError("证据审查模式只能是 mock 或 live")
 
     def call_model_node(state: AgentGraphState) -> AgentGraphState:
+        _require_enabled_state_tools(state)
         # 达到上限后不再向模型提供工具，强制进入最终回答，防止无限循环。
         offer_tools = state.get("tool_steps", 0) < MAX_TOOL_STEPS
         gateway_reply = model_gateway.request(
@@ -439,7 +441,10 @@ def build_agent_graph(
                     state["task_question"], state.get("tool_trace", []), evidence
                 )
             elif evidence:
-                answer = append_verified_citations(answer, evidence)
+                # 普通 RAG 直接展示已核验摘录，不给未经核验的模型答案附加真引用。
+                answer = append_verified_citations(
+                    "\n\n".join(item["content"] for item in evidence), evidence,
+                )
             updates.update({"answer": answer, "status": "COMPLETED"})
             return updates
 
@@ -471,6 +476,7 @@ def build_agent_graph(
         return "read_tool"
 
     def read_tool_node(state: AgentGraphState) -> AgentGraphState:
+        require_tool_enabled(state["tool_name"])
         # 工具执行函数可以按运行环境注入，离线评测无需修改模块级全局变量。
         result = tool_runner(state["tool_name"], state["arguments_json"])
         trace = state.get("tool_trace", []) + [{
@@ -515,12 +521,13 @@ def build_agent_graph(
                     })
                 else:
                     raw_verdict = reviewer_reply
-                verdict, result = verify_evidence_review(raw_verdict, review_candidates)
+                verdict, result = verify_evidence_review(
+                    raw_verdict, review_candidates, limit=search_args.limit,
+                )
                 review_updates["evidence_review"] = verdict.model_dump()
             else:
                 # Mock 和未配置审查器时保持免费、可解释的保守门禁。
-                result = partition["admitted"]
-            result = result[:search_args.limit]
+                result = partition["admitted"][:search_args.limit]
             evidence = evidence + result
         if state["tool_name"] == "check_return_eligibility" and result is not None:
             # 工具结果单独提交为 Checkpoint，恢复追问时不会再次执行查询。
@@ -685,6 +692,7 @@ def build_agent_graph(
         }
 
     def propose_change_node(state: AgentGraphState) -> AgentGraphState:
+        require_tool_enabled("request_priority_change")
         # Pydantic 在真正创建 PendingAction 前验证模型参数，禁止模型夹带字段或伪造优先级。
         args = RequestPriorityChangeArgs.model_validate_json(state["arguments_json"])
         action = action_store.propose_priority_change(args.ticket_id, args.new_priority)
@@ -701,6 +709,7 @@ def build_agent_graph(
         }
 
     def await_approval_node(state: AgentGraphState) -> AgentGraphState:
+        require_tool_enabled("request_priority_change")
         # 节点暂停前没有写操作；恢复时本节点从头执行也不会重复创建 PendingAction。
         resumed = interrupt({
             "action_id": state["action_id"],
@@ -715,6 +724,7 @@ def build_agent_graph(
         return "execute_change" if state["approved"] else "cancel_change"
 
     def execute_change_node(state: AgentGraphState) -> AgentGraphState:
+        require_tool_enabled("request_priority_change")
         action = action_store.confirm(state["action_id"])
         return {
             "tool_result": action.model_dump(),
@@ -723,6 +733,7 @@ def build_agent_graph(
         }
 
     def cancel_change_node(state: AgentGraphState) -> AgentGraphState:
+        require_tool_enabled("request_priority_change")
         action = action_store.cancel(state["action_id"])
         return {
             "tool_result": action.model_dump(),
@@ -791,6 +802,13 @@ def _thread_config(user_id: str, thread_id: str) -> dict:
     return {"configurable": {"thread_id": checkpoint_id}}
 
 
+def _require_enabled_state_tools(state: AgentGraphState) -> None:
+    """重读或恢复旧 Checkpoint 时也检查工具策略，包括已执行过的工单查询。"""
+    require_tool_enabled(state.get("tool_name", ""))
+    for step in state.get("tool_trace", []):
+        require_tool_enabled(step["tool_name"])
+
+
 def _owned_snapshot(graph, user_id: str, thread_id: str):
     snapshot = graph.get_state(_thread_config(user_id, thread_id))
     if (
@@ -801,6 +819,7 @@ def _owned_snapshot(graph, user_id: str, thread_id: str):
         raise AgentGraphNotFoundError(
             "Agent 工作流不存在、从未启动、已过期或不属于当前用户。请先查询原订单和草稿状态，不能凭旧确认重建申请。"
         )
+    _require_enabled_state_tools(snapshot.values)
     return snapshot
 
 
@@ -967,6 +986,7 @@ def get_agent_graph_state(
 
 
 def _to_response(state: AgentGraphState) -> AgentGraphResponse:
+    _require_enabled_state_tools(state)
     return AgentGraphResponse(
         thread_id=state["thread_id"],
         mode=state["mode"],

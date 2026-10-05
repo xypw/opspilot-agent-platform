@@ -15,6 +15,7 @@ from tool_args import (
     RequestPriorityChangeArgs,
     SearchKnowledgeBaseArgs,
 )
+from tool_policy import require_tool_enabled
 
 
 # 独立运行本模块时使用内存仓库；FastAPI 启动后会注入与写操作相同的仓库。
@@ -61,6 +62,7 @@ class ConfiguredToolExecutor:
 
     def execute(self, tool_name: str, arguments_json: str) -> dict | list[dict] | None:
         """先校验参数，再只调用工具名对应的一个依赖。"""
+        require_tool_enabled(tool_name)
         args = json.loads(arguments_json)
 
         if tool_name == "query_ticket":

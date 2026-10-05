@@ -67,8 +67,9 @@ def build_service_router(
                 try:
                     reviewed = evidence_reviewer(request.query, review_candidates)
                     raw = reviewed.verdict if isinstance(reviewed, EvidenceReviewReply) else reviewed
-                    verdict, evidence = verify_evidence_review(raw, review_candidates)
-                    evidence = evidence[:request.limit]
+                    verdict, evidence = verify_evidence_review(
+                        raw, review_candidates, limit=request.limit,
+                    )
                     missing = verdict.missing_information or missing
                 except (httpx.HTTPError, ValueError, RuntimeError):
                     # 模型或引文校验失败时停止回答，不降级为未复核的候选片段。

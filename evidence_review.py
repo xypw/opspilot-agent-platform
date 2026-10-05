@@ -185,7 +185,9 @@ class ConfiguredEvidenceReviewer:
         )
 
 
-def verify_evidence_review(raw_verdict: dict, candidates: list[dict]) -> tuple[EvidenceVerdict, list[dict]]:
+def verify_evidence_review(
+    raw_verdict: dict, candidates: list[dict], *, limit: int | None = None,
+) -> tuple[EvidenceVerdict, list[dict]]:
     """拒绝矛盾判定与伪造引文，返回只包含核实摘录的证据副本。"""
     verdict = EvidenceVerdict.model_validate(raw_verdict)
     if not verdict.supported:
@@ -213,6 +215,14 @@ def verify_evidence_review(raw_verdict: dict, candidates: list[dict]) -> tuple[E
         excerpts = selected.setdefault(quote.chunk_id, [])
         if quote.text not in excerpts:
             excerpts.append(quote.text)
+
+    # 充分性针对完整引文集合成立；裁剪后不能沿用该判定。
+    if limit is not None and len(selected) > limit:
+        return EvidenceVerdict(
+            supported=False,
+            supporting_quotes=[],
+            missing_information="完整支持该问题的证据超过返回数量上限，请提高 limit 或拆分问题。",
+        ), []
 
     return verdict, [
         {**by_id[chunk_id], "content": "\n".join(excerpts)}

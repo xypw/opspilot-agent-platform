@@ -17,17 +17,28 @@ description: 为 OpsPilot 的 Python FastAPI、LangGraph、RAG 与 Java Spring �
 
 ## 隔离Python测试环境
 
-在仓库根目录使用项目虚拟环境运行。覆盖本地服务配置，避免普通测试依赖用户的 `.env`、Redis、PostgreSQL或API Key：
+在仓库根目录的专用测试终端中使用项目虚拟环境运行。覆盖本地服务配置，避免普通测试继承部署鉴权、数据库、限流和外部重排设置：
 
 ```powershell
 $env:REDIS_URL=' '
 $env:TICKET_REPOSITORY_BACKEND='memory'
 $env:ORDER_QUERY_BACKEND='memory'
+$env:KNOWLEDGE_STORE_BACKEND='memory'
+$env:OPSPILOT_AUTH_REQUIRED='false'
+$env:MODEL_RATE_LIMIT_REQUESTS='0'
+$env:SILICONFLOW_API_KEY=' '
+$env:RUN_REDIS_INTEGRATION='0'
+$env:RUN_REDIS_RATE_LIMIT_INTEGRATION='0'
+$env:RUN_POSTGRES_INTEGRATION='0'
 .\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
 ```
 
 需要针对性验证时，把 `discover -s tests` 替换为明确的测试模块，例如
 `tests.test_return_reason_flow tests.test_return_draft_client`.
+
+`OPSPILOT_AUTH_REQUIRED=false` 只用于普通离线测试；`tests.test_auth_boundary` 与 `tests.test_review_boundary_regressions` 会显式重新开启鉴权，验证未认证访问和部署禁用工具不能绕过。不要修改生产鉴权默认值来让测试通过。空白重排 Key 用于覆盖本机 `.env`；模型测试必须注入模拟网关或 HTTP 替身，此命令不授权运行真实模型评测脚本。
+
+涉及知识回答时，检查最终答案来自已核验的摘录，且证据裁剪后不能沿用裁剪前的充分性结论；涉及工具时，同时检查提供给模型的工具列表、实际执行与旧检查点恢复入口。
 
 ## 验证Java代码
 
