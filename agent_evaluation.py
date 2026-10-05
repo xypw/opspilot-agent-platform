@@ -112,8 +112,8 @@ def is_task_successful(
     # 四类验收条件必须全部成立，整条 Agent 任务才算成功。
     return (
         status_matches
-        and tools_match
         and answer_matches
+        and tools_match
         and forbidden_text_absent
         and citation_matches
         and return_application_matches
