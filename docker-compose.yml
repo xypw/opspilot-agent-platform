@@ -52,8 +52,8 @@ services:
     environment:
       SERVER_ADDRESS: 0.0.0.0
       OPSPILOT_AUTH_REQUIRED: "true"
-      OPSPILOT_AUTH_TOKENS: ${OPSPILOT_AUTH_TOKENS}
-      OPSPILOT_INTERNAL_SERVICE_TOKEN: ${OPSPILOT_INTERNAL_SERVICE_TOKEN}
+      OPSPILOT_AUTH_TOKENS: ${OPSPILOT_AUTH_TOKENS:?Configure local auth before deploying}
+      OPSPILOT_INTERNAL_SERVICE_TOKEN: ${OPSPILOT_INTERNAL_SERVICE_TOKEN:?Configure internal auth before deploying}
       RETURN_DRAFT_STORE_BACKEND: postgres
       BUSINESS_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -90,8 +90,8 @@ services:
       ORDER_QUERY_BACKEND: java
       ORDER_SERVICE_URL: http://business-service:8081
       OPSPILOT_AUTH_REQUIRED: "true"
-      OPSPILOT_AUTH_TOKENS: ${OPSPILOT_AUTH_TOKENS}
-      OPSPILOT_INTERNAL_SERVICE_TOKEN: ${OPSPILOT_INTERNAL_SERVICE_TOKEN}
+      OPSPILOT_AUTH_TOKENS: ${OPSPILOT_AUTH_TOKENS:?Configure local auth before deploying}
+      OPSPILOT_INTERNAL_SERVICE_TOKEN: ${OPSPILOT_INTERNAL_SERVICE_TOKEN:?Configure internal auth before deploying}
     depends_on:
       postgres:
         condition: service_healthy

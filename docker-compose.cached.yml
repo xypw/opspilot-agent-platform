@@ -1,0 +1,12 @@
+# 与 docker-compose.yml 合并；仅在 requirements.txt 未变且本机存在指定基镜像时使用。
+services:
+  api:
+    build:
+      dockerfile: Dockerfile.cached
+      args:
+        BASE_IMAGE: ${OPSPILOT_API_BASE_IMAGE:?set an existing tested API base image}
+  business-service:
+    build:
+      dockerfile: Dockerfile.cached
+      args:
+        BASE_IMAGE: ${OPSPILOT_JAVA_BASE_IMAGE:?set an existing tested Java base image}

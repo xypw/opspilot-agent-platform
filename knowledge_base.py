@@ -240,14 +240,13 @@ def search_knowledge_candidates(
     candidate_limit = limit * 3
     if selected_backend == "postgres":
         try:
-            results = POSTGRES_VECTOR_STORE.search(query, candidate_limit)
+            return POSTGRES_VECTOR_STORE.search_hybrid(
+                query, candidate_limit,
+                min_semantic_similarity=MIN_SEMANTIC_SIMILARITY,
+                reranker=RERANKER,
+            )
         except (psycopg.Error, DatabaseConfigurationError) as error:
             raise KnowledgeStoreUnavailableError("知识库暂时无法检索文档") from error
-        admitted = [
-            result for result in results
-            if result["score"] >= MIN_SEMANTIC_SIMILARITY
-        ]
-        return admitted
 
     published_records = [record for record in VECTOR_STORE.records
                          if record.get("publication_status", "published") == "published"]

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
     page INTEGER NOT NULL CHECK (page > 0),
     chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
     content TEXT NOT NULL CHECK (length(trim(content)) > 0),
+    lexical_terms TEXT[] NOT NULL DEFAULT '{}',
     embedding vector(512) NOT NULL,
     source_start INTEGER CHECK (source_start >= 0),
     source_end INTEGER CHECK (source_end >= source_start),
@@ -74,6 +75,8 @@ CREATE TABLE IF NOT EXISTS document_review_events (
 -- 后续做语义检索时使用余弦距离；HNSW 比顺序扫描更适合持续增长的知识库。
 CREATE INDEX IF NOT EXISTS knowledge_chunks_embedding_hnsw_idx
     ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS knowledge_chunks_lexical_terms_gin_idx
+    ON knowledge_chunks USING gin (lexical_terms);
 
 -- 先写入固定演示业务数据；ON CONFLICT 使容器重启时不会重复插入。
 INSERT INTO tickets (id, status, priority) VALUES

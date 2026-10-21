@@ -17,7 +17,8 @@ class ReturnDraftTest {
         public Instant instant() { return now; }
     }
     private final TestClock clock = new TestClock();
-    private final ReturnEligibilityService eligibility = new ReturnEligibilityService(clock);
+    private final ReturnEligibilityService eligibility = new ReturnEligibilityService(clock,
+            id -> OrderReturnPolicy.standard());
     private final ReturnDraftService drafts = new ReturnDraftService(clock, eligibility,
             new ReturnReviewService(eligibility), new InMemoryReturnDraftStore());
     private final OrderResponse order = new OrderResponse("O-2001", "delivered", "键盘",
@@ -28,7 +29,7 @@ class ReturnDraftTest {
     void crossesDay16WithinHourAndRetryReturnsSameResult() {
         var draft = drafts.start(order);
         clock.now = clock.now.plusSeconds(3599);
-        assertThat(eligibility.evaluate(order).canApply()).isFalse();
+        assertThat(eligibility.evaluate(order).canApply()).isTrue();
         var review = drafts.submit(order, draft.draftId(), reason);
         assertThat(review.decision()).isEqualTo(ReviewDecision.MANUAL_REVIEW);
         clock.now = clock.now.plusSeconds(100);
@@ -49,9 +50,9 @@ class ReturnDraftTest {
     }
 
     @Test
-    void cannotStartAfterDay15OrBypassCancellation() {
+    void lateQualityRequestCanStartButCancellationCannotBeBypassed() {
         clock.now = clock.now.plusSeconds(3600);
-        assertThatThrownBy(() -> drafts.start(order)).hasMessage("ORDER_NOT_ELIGIBLE");
+        assertThat(drafts.start(order).status()).isEqualTo("WAITING_REASON");
         clock.now = clock.now.minusSeconds(3600);
         var draft = drafts.start(order);
         var cancelled = new OrderResponse(order.id(), "cancelled", order.product(), order.deliveredAt(), 3555);

@@ -1,0 +1,4 @@
+# 先用项目 Maven 缓存构建完整 Spring Boot jar；本层只替换应用，不下载 JRE。
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY --chown=opspilot:opspilot target/business-service-0.1.0.jar /app/app.jar

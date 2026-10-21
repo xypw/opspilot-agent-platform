@@ -308,8 +308,8 @@ class ConfiguredAgentModelGateway:
                 )
             elif tool_name == "check_return_eligibility":
                 decisions = {
-                    "NO_REASON_ALLOWED": "该订单在七天无理由期限内，可以申请退货。",
-                    "REASON_REQUIRED": "该订单可以申请退货，但必须提供退货理由。",
+                    "NO_REASON_ALLOWED": "业务服务判定符合无理由申请条件，可以申请退货，提交仍需用户确认。",
+                    "REASON_REQUIRED": "需补充退货原因并核实商品政策，当前尚未批准退货。",
                     "NOT_ALLOWED": "该订单当前不能申请退货。",
                 }
                 parts.append(decisions[tool_result["decision"]])
@@ -543,7 +543,7 @@ def build_agent_graph(
                     and state.get("return_reason") is None):
                 updates.update({
                     "status": "WAITING_REASON",
-                    "answer": f"订单 {result['order_id']} 已超过七天无理由期限，请说明退货原因。",
+                    "answer": f"订单 {result['order_id']} 需要补充退货原因并核实商品政策，当前尚未批准退货。",
                 })
             return updates
         no_evidence_answer = answer_when_evidence_is_missing(state["tool_name"], result)
@@ -565,7 +565,7 @@ def build_agent_graph(
         }
 
     def route_after_read(state: AgentGraphState) -> str:
-        # 两种可申请资格都先建立服务器草稿：七天内直接进入确认，八至十五天先追问原因。
+        # Java 根据类别/状态/承诺返回资格；需要原因或人工核实时先收集资料。
         if (state.get("apply_requested")
                 and state.get("return_decision") in {"NO_REASON_ALLOWED", "REASON_REQUIRED"}):
             return "prepare_return_draft"
@@ -879,6 +879,14 @@ def resume_agent_graph(
 ) -> AgentGraphResponse:
     config = _thread_config(user_id, thread_id)
     snapshot = _owned_snapshot(graph, user_id, thread_id)
+    if (request.approved and snapshot.values.get("status") == "COMPLETED"
+            and snapshot.values.get("return_application")):
+        # 已收到 Java 成功回执的相同确认直接返回回执，不重新执行模型或业务写入。
+        return _to_response(snapshot.values)
+    if (request.approved and snapshot.values.get("approved") is True
+            and "execute_return" in snapshot.next):
+        # Java 响应丢失时继续已获确认的保存节点；仍以同一 draft_id 调用幂等业务入口。
+        return _to_response(graph.invoke(None, config=config))
     waiting_nodes = {"await_approval", "await_return_confirmation"}
     if not waiting_nodes.intersection(snapshot.next):
         raise AgentGraphStateError("Agent 当前不在等待确认，不能恢复。")

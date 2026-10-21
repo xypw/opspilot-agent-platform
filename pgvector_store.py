@@ -1,6 +1,8 @@
-"""PostgreSQL/pgvector 语义检索仓库。"""
+"""PostgreSQL/pgvector 持久化检索；两路召回均在数据库内限制候选数量。"""
 
 from collections.abc import Callable
+import logging
+import math
 
 import psycopg
 from psycopg.rows import dict_row
@@ -8,9 +10,13 @@ from psycopg.types.json import Jsonb
 
 from database import create_database_connection
 from embedding_service import LocalEmbeddingService
+from hybrid_search import _has_exact_identifier_match, reciprocal_rank_fusion
+from keyword_search import search_terms
+from reranker import RerankerService, RerankerUnavailableError, rerank_candidates
 
 
 ConnectionFactory = Callable[[], psycopg.Connection]
+LOGGER = logging.getLogger(__name__)
 
 
 class DocumentIdConflictError(ValueError):
@@ -40,6 +46,8 @@ class PostgresVectorStore:
             normalized_values = [float(value) for value in values]
         except (TypeError, ValueError):
             raise ValueError("查询向量只能包含数字") from None
+        if not all(math.isfinite(value) for value in normalized_values):
+            raise ValueError("查询向量必须是有限数字")
         return "[" + ",".join(str(value) for value in normalized_values) + "]"
 
     def save_document(
@@ -97,16 +105,17 @@ class PostgresVectorStore:
                         """INSERT INTO knowledge_chunks
                            (id, document_id, page, chunk_index, content, embedding,
                             source_start, source_end, heading_path, parser_version,
-                            validation_status, validation_reasons, publication_status)
+                            validation_status, validation_reasons, publication_status, lexical_terms)
                            VALUES (%s, %s, %s, %s, %s, %s::vector,
-                                   %s, %s, %s, %s, %s, %s, 'published')""",
+                                   %s, %s, %s, %s, %s, %s, 'published', %s)""",
                         (chunk["chunk_id"], document_id, chunk["page"],
                          index, chunk["content"], vector_literal,
                          chunk.get("source_start"), chunk.get("source_end"),
                          Jsonb(chunk.get("heading_path", [])),
                          chunk.get("parser_version", "legacy"),
                          chunk.get("validation_status", "validated"),
-                         Jsonb(chunk.get("validation_reasons", []))),
+                         Jsonb(chunk.get("validation_reasons", [])),
+                         sorted(search_terms(f"{title} {chunk['content']}"))),
                     )
         return len(chunks)
 
@@ -202,9 +211,9 @@ class PostgresVectorStore:
                         """INSERT INTO knowledge_chunks
                            (id, document_id, page, chunk_index, content, embedding,
                             source_start, source_end, heading_path, parser_version,
-                            validation_status, validation_reasons, publication_status)
+                            validation_status, validation_reasons, publication_status, lexical_terms)
                            VALUES (%s, %s, %s, %s, %s, %s::vector,
-                                   %s, %s, %s, %s, 'approved', %s, 'published')""",
+                                   %s, %s, %s, %s, 'approved', %s, 'published', %s)""",
                         (chunk["chunk_id"], document_id, chunk["page"],
                          chunk.get("chunk_index", chunk["page"] * 100000 +
                                    int(chunk["chunk_id"].rsplit("-c", 1)[1])),
@@ -212,7 +221,8 @@ class PostgresVectorStore:
                          chunk.get("source_start"), chunk.get("source_end"),
                          Jsonb(chunk.get("heading_path", [])),
                          chunk.get("parser_version", "legacy"),
-                         Jsonb(chunk.get("validation_reasons", []))),
+                         Jsonb(chunk.get("validation_reasons", [])),
+                         sorted(search_terms(f"{current['title']} {chunk['content']}"))),
                     )
                 combined = sorted(approved | set(pages))
                 all_pages = {page["page"] for page in result["pages"]}
@@ -274,4 +284,80 @@ class PostgresVectorStore:
                 "score": float(row["similarity"]),
             }
             for row in rows
+        ]
+
+    def search_hybrid(
+        self, query: str, limit: int = 3, *,
+        min_semantic_similarity: float = 0.60,
+        reranker: RerankerService | None = None,
+    ) -> list[dict]:
+        """双路 SQL 召回 -> 语义准入 -> RRF -> 可选重排；不装载全库向量。
+
+        关键词候选也计算自身余弦分数，不能把“没进入向量 Top-K”视为低相关。
+        只有完整业务编号精确匹配可以例外；普通中文二元词片不能绕过准入。
+        """
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query 必须是非空字符串")
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise ValueError("limit 必须在 1 到 100 之间")
+        if not math.isfinite(min_semantic_similarity) or not -1 <= min_semantic_similarity <= 1:
+            raise ValueError("min_semantic_similarity 必须在 -1 到 1 之间")
+        vector = self._build_vector_literal(self.embedding_service.embed_query(query.strip()))
+        terms = sorted(search_terms(query))
+        candidate_limit = min(limit * 3, 100)
+        fields = """
+            chunk.id AS chunk_id, document.title, chunk.page, chunk.content,
+            chunk.source_start, chunk.source_end, chunk.heading_path, chunk.parser_version,
+            1 - (chunk.embedding <=> %s::vector) AS semantic_score
+        """
+        source = """
+            FROM knowledge_chunks AS chunk
+            JOIN documents AS document ON document.id = chunk.document_id
+            WHERE chunk.publication_status = 'published'
+              AND document.publication_status IN ('published', 'partial_published')
+        """
+        with self._connection_factory() as connection:
+            with connection.cursor(row_factory=dict_row) as cursor:
+                # 两路候选来自同一只读快照，避免发布状态或文档内容在两次查询间变化。
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", ())
+                cursor.execute(
+                    f"""SELECT {fields} {source}
+                        ORDER BY chunk.embedding <=> %s::vector, chunk.id LIMIT %s""",
+                    (vector, vector, candidate_limit),
+                )
+                semantic = cursor.fetchall()
+                lexical = []
+                if terms:
+                    cursor.execute(
+                        f"""SELECT {fields},
+                            (SELECT COUNT(*) FROM unnest(chunk.lexical_terms) AS term
+                             WHERE term = ANY(%s::text[])) AS keyword_score
+                            {source} AND chunk.lexical_terms && %s::text[]
+                            ORDER BY keyword_score DESC, chunk.id LIMIT %s""",
+                        (vector, terms, terms, candidate_limit),
+                    )
+                    lexical = cursor.fetchall()
+
+        def admitted(row: dict, *, identifier_exception: bool = False) -> bool:
+            value = float(row["semantic_score"])
+            return math.isfinite(value) and (
+                value >= min_semantic_similarity
+                or (identifier_exception and _has_exact_identifier_match(query, row)))
+
+        fused = reciprocal_rank_fusion(
+            [[row for row in semantic if admitted(row)],
+             [row for row in lexical if admitted(row, identifier_exception=True)]],
+            limit=candidate_limit,
+        )
+        ranked = fused[:limit]
+        if reranker is not None and fused:
+            try:
+                ranked = rerank_candidates(query, fused, reranker, limit)
+            except RerankerUnavailableError:
+                LOGGER.warning("持久化检索重排不可用，本次使用 RRF 排序")
+        return [
+            {**{key: value for key, value in row.items()
+                if key not in {"semantic_score", "keyword_score", "rrf_score", "rerank_score"}},
+             "score": float(row.get("rerank_score", row["rrf_score"]))}
+            for row in ranked
         ]

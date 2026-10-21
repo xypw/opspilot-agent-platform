@@ -8,7 +8,8 @@ import static dev.opspilot.business.orders.ReturnReviewService.*;
 
 class ReturnReviewTest {
     private final ReturnReviewService service = new ReturnReviewService(new ReturnEligibilityService(
-            Clock.fixed(Instant.parse("2026-09-07T04:00:00Z"), ZoneId.of("Asia/Shanghai"))));
+            Clock.fixed(Instant.parse("2026-09-07T04:00:00Z"), ZoneId.of("Asia/Shanghai")),
+            id -> OrderReturnPolicy.standard()));
 
     private OrderResponse delivered(int days) {
         return new OrderResponse("O-2001", "delivered", "键盘",
@@ -24,7 +25,8 @@ class ReturnReviewTest {
         assertThat(service.review(delivered(15), quality).decision()).isEqualTo(ReviewDecision.MANUAL_REVIEW);
         assertThat(service.review(delivered(10), new ReviewRequest("其他", ReasonCode.OTHER)).decision())
                 .isEqualTo(ReviewDecision.MANUAL_REVIEW);
-        assertThat(service.review(delivered(16), quality).reason()).isEqualTo("RETURN_WINDOW_EXPIRED");
+        assertThat(service.review(delivered(16), quality).decision()).isEqualTo(ReviewDecision.MANUAL_REVIEW);
+        assertThat(service.review(delivered(7), quality).decision()).isEqualTo(ReviewDecision.MANUAL_REVIEW);
     }
 
     @Test

@@ -56,15 +56,15 @@ final class PostgresReturnDraftStore implements ReturnDraftStore {
                 INSERT INTO return_drafts (
                     order_id, draft_id, product, amount_cents, order_status, delivered_at,
                     eligibility_decision, eligibility_can_apply, eligibility_reason_required,
-                    days_since_delivery, eligibility_reason, started_at, expires_at, cancelled)
-                VALUES (?, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false)
+                    days_since_delivery, eligibility_reason, started_at, expires_at, cancelled, policy_fingerprint)
+                VALUES (?, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, ?)
                 ON CONFLICT (order_id) DO NOTHING
                 """,
                 draft.order.id(), draft.id, draft.order.product(), draft.order.amountCents(),
                 draft.order.status(), draft.order.deliveredAt(), draft.eligibility.decision().name(),
                 draft.eligibility.canApply(), draft.eligibility.reasonRequired(),
                 draft.eligibility.daysSinceDelivery(), draft.eligibility.reason(),
-                Timestamp.from(draft.started), Timestamp.from(draft.expires)) == 1;
+                Timestamp.from(draft.started), Timestamp.from(draft.expires), draft.eligibility.policyFingerprint()) == 1;
     }
 
     @Override
@@ -74,7 +74,7 @@ final class PostgresReturnDraftStore implements ReturnDraftStore {
                    SET draft_id = ?::uuid, product = ?, amount_cents = ?, order_status = ?, delivered_at = ?,
                        eligibility_decision = ?, eligibility_can_apply = ?, eligibility_reason_required = ?,
                        days_since_delivery = ?, eligibility_reason = ?, started_at = ?, expires_at = ?,
-                       submitted_reason = NULL, submitted_reason_code = NULL,
+                       policy_fingerprint = ?, submitted_reason = NULL, submitted_reason_code = NULL,
                        review_decision = NULL, review_reason = NULL, cancelled = false
                  WHERE order_id = ? AND draft_id = ?::uuid
                 """,
@@ -82,7 +82,7 @@ final class PostgresReturnDraftStore implements ReturnDraftStore {
                 draft.order.deliveredAt(), draft.eligibility.decision().name(),
                 draft.eligibility.canApply(), draft.eligibility.reasonRequired(),
                 draft.eligibility.daysSinceDelivery(), draft.eligibility.reason(),
-                Timestamp.from(draft.started), Timestamp.from(draft.expires),
+                Timestamp.from(draft.started), Timestamp.from(draft.expires), draft.eligibility.policyFingerprint(),
                 draft.order.id(), oldDraftId) == 1;
     }
 
@@ -137,7 +137,8 @@ final class PostgresReturnDraftStore implements ReturnDraftStore {
         state.eligibility = new ReturnEligibilityResponse(
                 orderId, ReturnDecision.valueOf(row.getString("eligibility_decision")),
                 row.getBoolean("eligibility_can_apply"), row.getBoolean("eligibility_reason_required"),
-                row.getObject("days_since_delivery", Long.class), row.getString("eligibility_reason"));
+                row.getObject("days_since_delivery", Long.class), row.getString("eligibility_reason"),
+                row.getString("policy_fingerprint"));
         state.started = row.getTimestamp("started_at").toInstant();
         state.expires = row.getTimestamp("expires_at").toInstant();
         state.cancelled = row.getBoolean("cancelled");

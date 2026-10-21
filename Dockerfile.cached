@@ -1,0 +1,5 @@
+# 仅用于依赖未改变时复用已验收的本机镜像。BASE_IMAGE 应指定已记录的备份标签。
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+WORKDIR /app
+COPY --chown=opspilot:opspilot . .

@@ -107,8 +107,9 @@ public class ReturnDraftService {
         if (draft.application != null) return draft.application;
         if (draft.cancelled) throw new DraftError(409, "DRAFT_CANCELLED");
         ensureActiveAndUnchanged(draft, order);
-        boolean acceptable = draft.eligibility.decision() == ReturnDecision.NO_REASON_ALLOWED
-                || (draft.result != null && draft.result.decision() == ReviewDecision.ACCEPTABLE);
+        boolean acceptable = draft.result == null
+                ? draft.eligibility.decision() == ReturnDecision.NO_REASON_ALLOWED
+                : draft.result.decision() == ReviewDecision.ACCEPTABLE;
         if (!acceptable) throw new DraftError(409, "RETURN_NOT_ACCEPTABLE");
         draft.application = new ApplicationResponse(
                 UUID.randomUUID().toString(), order.id(), order.product(), order.amountCents(),
@@ -174,7 +175,9 @@ public class ReturnDraftService {
         return order.amountCents() != draft.order.amountCents()
                 || !Objects.equals(order.product(), draft.order.product())
                 || !Objects.equals(order.status(), draft.order.status())
-                || !Objects.equals(order.deliveredAt(), draft.order.deliveredAt());
+                || !Objects.equals(order.deliveredAt(), draft.order.deliveredAt())
+                || !Objects.equals(eligibility.evaluate(order).policyFingerprint(),
+                                   draft.eligibility.policyFingerprint());
     }
 
     private ReturnDraftState find(ReturnDraftStore activeStore, String orderId, String draftId) {

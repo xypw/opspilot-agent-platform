@@ -35,6 +35,9 @@ class KnowledgeBaseTests(unittest.TestCase):
         threshold_patch = patch("knowledge_base.MIN_SEMANTIC_SIMILARITY", 0.6)
         threshold_patch.start()
         self.addCleanup(threshold_patch.stop)
+        reranker_patch = patch("knowledge_base.RERANKER", None)
+        reranker_patch.start()
+        self.addCleanup(reranker_patch.stop)
 
     def test_postgres_upload_passes_metadata_and_chunks_to_repository(self):
         chunks = [{"chunk_id": "refund-p1-c0", "page": 1, "content": "退款说明"}]
@@ -101,13 +104,11 @@ class KnowledgeBaseTests(unittest.TestCase):
                 "refund.pdf",
             )
 
-    def test_postgres_search_filters_low_score_without_reading_demo_chunks(self):
+    def test_postgres_search_delegates_hybrid_admission_without_reading_demo_chunks(self):
         store = Mock()
-        store.search.return_value = [
+        store.search_hybrid.return_value = [
             {"chunk_id": "stored", "title": "已上传退款制度", "page": 1,
              "content": "退款将在三个工作日内到账。", "score": 0.91},
-            {"chunk_id": "weak", "title": "弱相关资料", "page": 2,
-             "content": "其他内容。", "score": 0.21},
         ]
         with (
             patch("knowledge_base.KNOWLEDGE_STORE_BACKEND", "postgres"),
@@ -116,11 +117,13 @@ class KnowledgeBaseTests(unittest.TestCase):
             results = search_knowledge_base("退款多久到账", limit=2)
 
         self.assertEqual([item["chunk_id"] for item in results], ["stored"])
-        store.search.assert_called_once_with("退款多久到账", 6)
+        store.search_hybrid.assert_called_once_with(
+            "退款多久到账", 6, min_semantic_similarity=0.6, reranker=None)
+        store.search.assert_not_called()
 
     def test_postgres_filter_can_use_a_later_procedure_candidate(self):
         store = Mock()
-        store.search.return_value = [
+        store.search_hybrid.return_value = [
             {"chunk_id": "timing", "title": "到账", "page": 1,
              "content": "退款审核通过后三个工作日到账。", "score": 0.93},
             {"chunk_id": "steps", "title": "申请步骤", "page": 2,
@@ -133,11 +136,12 @@ class KnowledgeBaseTests(unittest.TestCase):
             results = search_knowledge_base("我应该怎么退款", limit=1)
 
         self.assertEqual([item["chunk_id"] for item in results], ["steps"])
-        store.search.assert_called_once_with("我应该怎么退款", 3)
+        store.search_hybrid.assert_called_once_with(
+            "我应该怎么退款", 3, min_semantic_similarity=0.6, reranker=None)
 
     def test_postgres_can_return_offline_counter_instruction(self):
         store = Mock()
-        store.search.return_value = [{
+        store.search_hybrid.return_value = [{
             "chunk_id": "counter", "title": "线下售后说明", "page": 1,
             "content": "携带订单号和商品至售后服务台办理退款。", "score": 0.81,
         }]
@@ -151,7 +155,7 @@ class KnowledgeBaseTests(unittest.TestCase):
 
     def test_postgres_empty_result_does_not_fall_back_to_demo_chunks(self):
         store = Mock()
-        store.search.return_value = []
+        store.search_hybrid.return_value = []
         with (
             patch("knowledge_base.KNOWLEDGE_STORE_BACKEND", "postgres"),
             patch("knowledge_base.POSTGRES_VECTOR_STORE", store),
@@ -160,7 +164,7 @@ class KnowledgeBaseTests(unittest.TestCase):
 
     def test_postgres_timing_chunk_cannot_answer_how_to_question(self):
         store = Mock()
-        store.search.return_value = [{
+        store.search_hybrid.return_value = [{
             "chunk_id": "stored", "title": "已上传退款制度", "page": 1,
             "content": "退款审核通过后三个工作日到账。", "score": 0.91,
         }]
@@ -172,7 +176,7 @@ class KnowledgeBaseTests(unittest.TestCase):
 
     def test_postgres_high_score_status_cannot_answer_how_to_question(self):
         store = Mock()
-        store.search.return_value = [{
+        store.search_hybrid.return_value = [{
             "chunk_id": "status", "title": "退款状态说明", "page": 1,
             "content": "客户提交退款申请后，通常三个工作日到账。", "score": 0.888,
         }]
@@ -184,7 +188,7 @@ class KnowledgeBaseTests(unittest.TestCase):
 
     def test_postgres_search_failure_is_not_no_evidence(self):
         store = Mock()
-        store.search.side_effect = psycopg.OperationalError("连接失败")
+        store.search_hybrid.side_effect = psycopg.OperationalError("连接失败")
         with (
             patch("knowledge_base.KNOWLEDGE_STORE_BACKEND", "postgres"),
             patch("knowledge_base.POSTGRES_VECTOR_STORE", store),

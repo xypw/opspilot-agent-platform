@@ -171,8 +171,43 @@ class ReturnReasonFlowTests(unittest.TestCase):
         repeated = self.client.post(
             "/agent-graph/runs/confirm-1/resume", json={"approved": True}
         )
-        self.assertEqual(repeated.status_code, 409)
+        self.assertEqual(repeated.status_code, 200)
+        self.assertEqual(repeated.json()["return_application"], completed.json()["return_application"])
         self.gateway.confirm.assert_called_once()
+
+    def test_confirmation_response_loss_retries_same_draft_without_replanning(self):
+        self.query.return_value = {
+            "order_id": "O-2001", "decision": "NO_REASON_ALLOWED", "can_apply": True,
+            "reason_required": False, "days_since_delivery": 7,
+            "reason": "WITHIN_7_DAY_NO_REASON_WINDOW",
+        }
+        self.start(thread="confirm-retry")
+        application = self.gateway.confirm.return_value
+        self.gateway.confirm.side_effect = [OrderServiceError("响应丢失，业务结果未知"), application]
+        first = self.client.post("/agent-graph/runs/confirm-retry/resume", json={"approved": True})
+        self.assertEqual(first.status_code, 503)
+        declined_retry = self.client.post("/agent-graph/runs/confirm-retry/resume", json={"approved": False})
+        self.assertEqual(declined_retry.status_code, 409)
+        second = self.client.post("/agent-graph/runs/confirm-retry/resume", json={"approved": True})
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["return_application"]["application_id"], application["application_id"])
+        self.assertEqual(self.gateway.confirm.call_count, 2)
+        for call in self.gateway.confirm.call_args_list:
+            self.assertEqual(call.args, ("O-2001", self.draft["draft_id"]))
+        self.gateway.start.assert_called_once()
+        self.query.assert_called_once()
+
+    def test_completed_return_cannot_be_changed_into_cancellation(self):
+        self.query.return_value = {
+            "order_id": "O-2001", "decision": "NO_REASON_ALLOWED", "can_apply": True,
+            "reason_required": False, "days_since_delivery": 7,
+            "reason": "WITHIN_7_DAY_NO_REASON_WINDOW",
+        }
+        self.start(thread="completed-no-cancel")
+        self.client.post("/agent-graph/runs/completed-no-cancel/resume", json={"approved": True})
+        response = self.client.post("/agent-graph/runs/completed-no-cancel/resume", json={"approved": False})
+        self.assertEqual(response.status_code, 409)
+        self.gateway.cancel.assert_not_called()
 
     def test_declining_confirmation_cancels_without_creating_application(self):
         self.query.return_value = {

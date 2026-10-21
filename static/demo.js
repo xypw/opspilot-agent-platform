@@ -24,7 +24,7 @@ function approvalText(state) {
       "金额：¥" + (draft.amount_cents / 100).toFixed(2),
       "草稿：" + draft.draft_id,
       "有效期至：" + draft.expires_at,
-      "退货原因：" + (state.return_reason || "七天内无理由"),
+      "退货原因：" + (state.return_reason || "按业务服务判定的无理由申请"),
       "确认后操作：创建退货申请",
     ].join("\n");
   }

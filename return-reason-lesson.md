@@ -1,5 +1,7 @@
 # 退货原因补全：LangGraph 暂停与恢复
 
+> 历史教学记录：下文“8—15天、15天后拒绝”的旧示例已被分类规则替代，不能作为现行商品政策。当前实现和依据见 [分类售后规则](docs/category-return-policy.md)。
+
 本节使用 `/agent-graph/runs`；旧 `/chat` 不提供多轮原因补全。
 模型选择工具，Java 提供资格结果，LangGraph 保存订单和原因。
 

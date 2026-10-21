@@ -85,7 +85,7 @@ mvn spring-boot:run
 
 ## 4. 基本演示
 
-演示使用的订单如下。`O-2001` 的签收日期在服务启动时设置为业务当天的七天前；如果服务跨日运行，查询时的签收天数会相应增加。
+以下 `O-2001` 等为 memory 模式样例，签收日期随该模式启动生成。PostgreSQL 部署从 orders 查询归属、商品、金额及签收日，不回退这些内存记录。PG 使用新演示编号 `O-7101`、`O-7201`、`O-7202`，签收日期只在迁移首次插入时确定，重启不会刷新；旧库记录缺少归属时保持不可访问，等待显式核实回填。
 
 | 订单号 | 商品 | 状态 | 金额（分） | 所属用户 |
 | --- | --- | --- | --- | --- |
@@ -151,15 +151,15 @@ Invoke-RestMethod "$baseUrl/api/orders/O-2003/return-eligibility" | ConvertTo-Js
 
 `O-2002` 返回 `NOT_ALLOWED / ORDER_NOT_DELIVERED`，`O-2003` 返回 `NOT_ALLOWED / ORDER_CANCELLED`。这些都是成功计算出的业务结论，HTTP 状态为 200。
 
-资格规则按上海时区自然日计算：
+期限按上海时区自然日计算；同时检查可信商品类别、完好状态、购买确认和商家承诺：
 
 | 签收后天数 / 状态 | `decision` | 含义 |
 | --- | --- | --- |
-| 0～7 天，已签收 | `NO_REASON_ALLOWED` | 可以无理由申请退货 |
-| 8～15 天，已签收 | `REASON_REQUIRED` | 可以提出申请，但需要原因预审 |
-| 超过 15 天、未签收或已取消 | `NOT_ALLOWED` | 当前不允许申请 |
+| 普通商品完好且处于无理由期限内 | `NO_REASON_ALLOWED` | 普通商品至少7天，更有利的商家承诺按记录执行 |
+| 特殊类别、无理由期限已过或事实待核实 | `REASON_REQUIRED` | 补充原因，质量等争议进入人工核实，不代表已批准 |
+| 未签收或已取消 | `NOT_ALLOWED` | 当前订单状态不支持此退货流程 |
 
-原因预审接受 `PERSONAL_PREFERENCE`、`QUALITY_ISSUE`、`OTHER` 三类原因。8～15 天的个人喜好理由会被拒绝；质量问题或其他理由返回 `MANUAL_REVIEW`，不会直接获得确认申请的资格。三条默认订单没有 8～15 天样例，该边界可以阅读 `ReturnReviewTest` 和 `ReturnEligibilityServiceTest`。
+原因预审接受 `PERSONAL_PREFERENCE`、`QUALITY_ISSUE`、`OTHER`。个人原因按对应商品事实及承诺判断；质量或其他待核实问题返回 `MANUAL_REVIEW`，不以15天统一拒绝，也不能直接确认绕过核实。未知事实不能自动放行或直接剥夺全部售后权利。完整来源与限制见 [分类售后规则](../docs/category-return-policy.md)。
 
 ### 4.4 创建草稿并查看确认内容
 
@@ -259,7 +259,7 @@ PostgreSQL 需要提前可用；切换后，启动时由 Flyway 执行迁移。�
 在 IDEA 中可以单独运行以下测试类：
 
 - `OrderApiTest`：HTTP 查询、字段和错误状态。
-- `ReturnEligibilityServiceTest`：7 天、15 天等资格边界。
+- `ReturnEligibilityServiceTest`、`CategoryReturnPolicyTest`：期限、商品类别、购买确认、完好性、商家承诺与旧确认失效。
 - `ReturnReviewTest`：原因预审结论。
 - `ReturnDraftTest`、`ReturnApplicationApiTest`：过期、取消、快照改变和确认幂等。
 - `AuthenticationApiTest`：认证与订单访问权限。

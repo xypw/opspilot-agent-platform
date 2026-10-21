@@ -38,11 +38,19 @@ public class ReturnReviewService {
         if (current.decision() == ReturnDecision.NOT_ALLOWED) {
             return new ReviewResponse(order.id(), ReviewDecision.REJECTED, current.reason());
         }
+        // 质量/描述不符/物流损需要核实证据，即使在七天内也不由模型自动判定属实。
+        if (request.reasonCode() == ReasonCode.QUALITY_ISSUE || request.reasonCode() == ReasonCode.OTHER) {
+            return new ReviewResponse(order.id(), ReviewDecision.MANUAL_REVIEW, "EVIDENCE_REVIEW_REQUIRED");
+        }
         if (current.decision() == ReturnDecision.NO_REASON_ALLOWED) {
             return new ReviewResponse(order.id(), ReviewDecision.ACCEPTABLE, "NO_REASON_WINDOW");
         }
         if (request.reasonCode() == ReasonCode.PERSONAL_PREFERENCE) {
-            return new ReviewResponse(order.id(), ReviewDecision.REJECTED, "PERSONAL_REASON_OUTSIDE_WINDOW");
+            if (java.util.Set.of("POLICY_FACTS_REQUIRED", "PRODUCT_CONDITION_UNKNOWN",
+                    "EXCLUSION_CONFIRMATION_REQUIRED").contains(current.reason())) {
+                return new ReviewResponse(order.id(), ReviewDecision.MANUAL_REVIEW, current.reason());
+            }
+            return new ReviewResponse(order.id(), ReviewDecision.REJECTED, current.reason());
         }
         // 质量问题需要材料核实；OTHER 无明确依据，也进入人工审核。
         return new ReviewResponse(order.id(), ReviewDecision.MANUAL_REVIEW, "EVIDENCE_REVIEW_REQUIRED");

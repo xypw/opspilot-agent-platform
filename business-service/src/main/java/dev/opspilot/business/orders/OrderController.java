@@ -15,12 +15,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
-    private final DemoOrderRepository repository;
+    private final OrderRepository repository;
     private final ReturnEligibilityService returnEligibilityService;
     private final ReturnReviewService returnReviewService;
 
     public OrderController(
-            DemoOrderRepository repository,
+            OrderRepository repository,
             ReturnEligibilityService returnEligibilityService,
             ReturnReviewService returnReviewService) {
         this.repository = repository;

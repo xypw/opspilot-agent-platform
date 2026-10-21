@@ -23,7 +23,9 @@ class ReturnReviewResponse(BaseModel):
     decision: Literal["ACCEPTABLE", "REJECTED", "MANUAL_REVIEW"]
     reason: Literal["NO_REASON_WINDOW", "PERSONAL_REASON_OUTSIDE_WINDOW",
                     "EVIDENCE_REVIEW_REQUIRED", "ORDER_CANCELLED",
-                    "ORDER_NOT_DELIVERED", "RETURN_WINDOW_EXPIRED"]
+                    "ORDER_NOT_DELIVERED", "RETURN_WINDOW_EXPIRED",
+                    "NO_REASON_CATEGORY_EXCLUDED", "NO_REASON_WINDOW_EXPIRED", "PRODUCT_NOT_INTACT",
+                    "POLICY_FACTS_REQUIRED", "PRODUCT_CONDITION_UNKNOWN", "EXCLUSION_CONFIRMATION_REQUIRED"]
 
 
 def review_return(http: httpx.Client, order_id: str, reason: str, code: ReasonCode) -> dict:
@@ -43,6 +45,9 @@ def review_return(http: httpx.Client, order_id: str, reason: str, code: ReasonCo
         expected = {
             "NO_REASON_WINDOW": "ACCEPTABLE",
             "EVIDENCE_REVIEW_REQUIRED": "MANUAL_REVIEW",
+            "POLICY_FACTS_REQUIRED": "MANUAL_REVIEW",
+            "PRODUCT_CONDITION_UNKNOWN": "MANUAL_REVIEW",
+            "EXCLUSION_CONFIRMATION_REQUIRED": "MANUAL_REVIEW",
         }.get(result.reason, "REJECTED")
         if result.order_id != order_id or result.decision != expected:
             raise ValueError("预审响应不一致")

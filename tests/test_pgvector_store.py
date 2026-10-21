@@ -223,6 +223,11 @@ class PostgresVectorStoreTests(unittest.TestCase):
         self.assertTrue(any("INSERT INTO knowledge_chunks" in sql and "'published'" in sql
                             for sql, _ in cursor.calls))
         self.assertTrue(any("UPDATE document_review_queue" in sql for sql, _ in cursor.calls))
+        chunk_sql, chunk_params = next(
+            (sql, params) for sql, params in cursor.calls if "INSERT INTO knowledge_chunks" in sql)
+        self.assertIn("lexical_terms", chunk_sql)
+        from keyword_search import search_terms
+        self.assertEqual(chunk_params[-1], sorted(search_terms("退款制度 退款三个工作日到账")))
 
 
 if __name__ == "__main__":

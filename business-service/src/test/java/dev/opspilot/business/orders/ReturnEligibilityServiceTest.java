@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 class ReturnEligibilityServiceTest {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-07T04:00:00Z"), ZONE);
-    private final ReturnEligibilityService service = new ReturnEligibilityService(CLOCK);
+    private final ReturnEligibilityService service = new ReturnEligibilityService(CLOCK,
+            id -> OrderReturnPolicy.standard());
 
     @Test
     void day7StillAllowsNoReasonReturn() {
@@ -44,12 +45,12 @@ class ReturnEligibilityServiceTest {
     }
 
     @Test
-    void day16RejectsReturn() {
+    void day16StillAllowsQualityEvidenceReview() {
         var result = service.evaluate(deliveredOn("2026-08-22"));
 
-        assertThat(result.decision()).isEqualTo(ReturnDecision.NOT_ALLOWED);
-        assertThat(result.canApply()).isFalse();
-        assertThat(result.reason()).isEqualTo("RETURN_WINDOW_EXPIRED");
+        assertThat(result.decision()).isEqualTo(ReturnDecision.REASON_REQUIRED);
+        assertThat(result.canApply()).isTrue();
+        assertThat(result.reason()).isEqualTo("NO_REASON_WINDOW_EXPIRED");
         assertThat(result.daysSinceDelivery()).isEqualTo(16);
     }
 

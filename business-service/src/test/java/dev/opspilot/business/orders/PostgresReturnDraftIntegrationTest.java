@@ -36,6 +36,8 @@ class PostgresReturnDraftIntegrationTest {
         if (orderId == null) return;
         jdbc.update("DELETE FROM return_applications WHERE order_id = ?", orderId);
         jdbc.update("DELETE FROM return_drafts WHERE order_id = ?", orderId);
+        jdbc.update("DELETE FROM order_return_policies WHERE order_id = ?", orderId);
+        jdbc.update("DELETE FROM orders WHERE id = ?", orderId);
     }
 
     @Test
@@ -45,6 +47,7 @@ class PostgresReturnDraftIntegrationTest {
                 orderId, "delivered", "集成测试键盘",
                 LocalDate.now(clock).minusDays(1), 3555);
 
+        persistPolicyOrder(order);
         var draft = service.start(order);
         var firstApplication = service.confirm(order, draft.draftId());
 
@@ -64,6 +67,7 @@ class PostgresReturnDraftIntegrationTest {
         orderId = "IT-" + UUID.randomUUID();
         var order = new OrderResponse(orderId, "delivered", "集成测试键盘",
                 LocalDate.now(clock).minusDays(1), 3555);
+        persistPolicyOrder(order);
         var draft = service.start(order);
         var secondStore = new PostgresReturnDraftStore(jdbc, transactions, flyway);
         var secondService = new ReturnDraftService(clock, eligibility, reviewer, secondStore);
@@ -91,5 +95,14 @@ class PostgresReturnDraftIntegrationTest {
             start.countDown();
             pool.shutdownNow();
         }
+    }
+
+    private void persistPolicyOrder(OrderResponse order) {
+        jdbc.update("INSERT INTO orders(id, status, product, owner_user_id, delivered_at, amount_cents) "
+                + "VALUES (?, ?, ?, ?, ?, ?)", order.id(), order.status(), order.product(),
+                "IT-owner", order.deliveredAt(), order.amountCents());
+        jdbc.update("INSERT INTO order_return_policies(order_id, category, product_condition, "
+                + "exclusion_confirmed_at_purchase, downloaded_or_unsealed, activated, merchant_no_reason_days, policy_version) "
+                + "VALUES (?, 'STANDARD', 'INTACT', false, false, false, 0, 'integration-v1')", order.id());
     }
 }

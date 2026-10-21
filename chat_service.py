@@ -87,9 +87,9 @@ def run_mock_chat(message: str) -> dict:
             elif tool_name == "check_return_eligibility":
                 decision = tool_result["decision"]
                 if decision == "NO_REASON_ALLOWED":
-                    answer = f"[模拟模式] 订单 {record_id} 在七天无理由期限内，可以申请退货。"
+                    answer = f"[模拟模式] 订单 {record_id} 符合业务服务判定的无理由申请条件，可以申请退货，提交仍需用户确认。"
                 elif decision == "REASON_REQUIRED":
-                    answer = f"[模拟模式] 订单 {record_id} 可以申请退货，但必须提供退货理由。"
+                    answer = f"[模拟模式] 订单 {record_id} 需补充原因并核实，当前尚未批准退货。"
                 else:
                     answer = f"[模拟模式] 订单 {record_id} 当前不能申请退货。"
             else:

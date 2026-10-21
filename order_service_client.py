@@ -43,6 +43,13 @@ class ReturnEligibilityResponse(BaseModel):
         "RETURN_WINDOW_EXPIRED",
         "ORDER_NOT_DELIVERED",
         "ORDER_CANCELLED",
+        "WITHIN_MERCHANT_NO_REASON_WINDOW",
+        "NO_REASON_CATEGORY_EXCLUDED",
+        "NO_REASON_WINDOW_EXPIRED",
+        "POLICY_FACTS_REQUIRED",
+        "PRODUCT_CONDITION_UNKNOWN",
+        "PRODUCT_NOT_INTACT",
+        "EXCLUSION_CONFIRMATION_REQUIRED",
     ]
 
     @model_validator(mode="after")
@@ -52,16 +59,19 @@ class ReturnEligibilityResponse(BaseModel):
                 self.can_apply
                 and not self.reason_required
                 and self.days_since_delivery is not None
-                and self.days_since_delivery <= 7
-                and self.reason == "WITHIN_7_DAY_NO_REASON_WINDOW"
+                and ((self.days_since_delivery <= 7 and self.reason == "WITHIN_7_DAY_NO_REASON_WINDOW")
+                     or (self.reason == "WITHIN_MERCHANT_NO_REASON_WINDOW"))
             )
         elif self.decision == "REASON_REQUIRED":
             valid = (
                 self.can_apply
                 and self.reason_required
                 and self.days_since_delivery is not None
-                and 8 <= self.days_since_delivery <= 15
-                and self.reason == "WITHIN_15_DAY_CONDITIONAL_WINDOW"
+                and ((self.reason == "WITHIN_15_DAY_CONDITIONAL_WINDOW"
+                      and 8 <= self.days_since_delivery <= 15)
+                     or self.reason in {"NO_REASON_CATEGORY_EXCLUDED", "NO_REASON_WINDOW_EXPIRED",
+                         "POLICY_FACTS_REQUIRED", "PRODUCT_CONDITION_UNKNOWN", "PRODUCT_NOT_INTACT",
+                         "EXCLUSION_CONFIRMATION_REQUIRED"})
             )
         else:
             valid = (

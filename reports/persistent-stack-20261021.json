@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-21",
+  "external_model_calls": 0,
+  "python_offline": {"total": 531, "passed": 520, "skipped": 11, "failed": 0},
+  "python_postgres": {"passed": 4, "failed": 0},
+  "java_memory_http": {"passed": 54, "skipped": 12, "failed": 0},
+  "java_postgres": {"passed": 12, "failed": 0},
+  "redis": {"passed": 5, "failed": 0},
+  "frontend": {"passed": 4, "failed": 0},
+  "frozen_mock_tasks": {"passed": 8, "failed": 0},
+  "deployed_checks": {
+    "passed": 22,
+    "failed": 0,
+    "model_mode": "mock",
+    "temporary_orders_created_and_removed": 5,
+    "checks": [
+      "demo_page", "service_page", "identity_isolation", "java_requires_internal_credential",
+      "agent_waits_for_confirmation", "zero_application_before_confirmation",
+      "checkpoint_read", "agent_submission", "duplicate_confirmation",
+      "persistent_rag_citations", "joint_order_policy_flow", "stale_confirmation_no_write",
+      "refresh_changes_draft", "fresh_confirmation_matches_new_amount",
+      "STANDARD_quality_manual_review", "STANDARD_manual_review_blocks_write",
+      "FRESH_PERISHABLE_not_auto_approved", "FRESH_PERISHABLE_quality_manual_review",
+      "FRESH_PERISHABLE_manual_review_blocks_write", "None_not_auto_approved",
+      "None_quality_manual_review", "None_manual_review_blocks_write"
+    ]
+  },
+  "data_before": {"orders": 3, "applications": 1, "documents": 2, "chunks": 4},
+  "data_after": {"orders": 8, "applications": 1, "documents": 2, "chunks": 4},
+  "migrations": ["V3__persistent_orders.sql", "V4__category_return_policies.sql", "002_hybrid_retrieval.sql"],
+  "lexical_backfill": {"updated_first_run": 4, "updated_repeat_run": 0},
+  "images": {
+    "api": "sha256:b9dcb6dac25bbde939d0c17a9488b64725e3082df411ca4980f8a7624a3cb137",
+    "business": "sha256:436253c70e2ff8102658926a22737a2b08c0ba54ff1438cad6ba3036766d0951"
+  },
+  "limitations": ["no_new_live_model_metrics", "reranker_wiring_verified_with_test_double", "legacy_ticket_pg_tests_not_run"],
+  "git_status_at_verification": "uncommitted; see Git history for subsequent commit and push status"
+}
