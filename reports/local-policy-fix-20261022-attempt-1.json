@@ -1,0 +1,17 @@
+{
+  "provider": "ollama",
+  "budget": 6,
+  "question": "退款多久到账",
+  "passed": false,
+  "cloud_http_attempts": 0,
+  "scope": "单例冒烟，不是任务成功率评测",
+  "http_status": 200,
+  "duration_ms": 64431,
+  "status": "COMPLETED",
+  "answer": "审核通过的退款通常会在三个工作日内按原支付路径到账\n\n来源：《OpsPilot企业服务制度样例》第1页",
+  "error": null,
+  "turn_errors": [
+    null
+  ],
+  "batch_admissions": 3
+}

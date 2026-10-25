@@ -1,6 +1,6 @@
 # OpsPilot
 
-最近一次本机发布验收见 [2026-09-24 部署报告](reports/deployment-20260924.md)：应用更新、身份隔离、确认与幂等、真实 Redis 共享配额及窗口恢复均通过；本轮没有外部模型请求。
+当前本机默认使用Ollama；等待提示、异常响应、失败重试及政策单例验证见 [本地修复报告](reports/local-model-bugfix-20261022.md) 与 [运行说明](docs/local-model-runtime.md)。一条真实政策任务已通过但耗时约64秒，不代表通用效果或速度达标。历史账号/云端429记录及 [持久化链路](reports/persistent-stack-20261021.md) 保留，不混写评测口径。
 
 [![CI](https://github.com/xypw/opspilot-agent-platform/actions/workflows/agent-evaluation.yml/badge.svg)](https://github.com/xypw/opspilot-agent-platform/actions/workflows/agent-evaluation.yml)
 [![Release](https://img.shields.io/github/v/release/xypw/opspilot-agent-platform)](https://github.com/xypw/opspilot-agent-platform/releases/tag/v1.0.0)
@@ -21,7 +21,7 @@ Python 服务负责 PDF 入库、检索、证据复核、引用及受控业务 A
 
 ```mermaid
 flowchart LR
-    U[用户或演示页] --> AUTH[Bearer 身份认证]
+    U[用户或演示页] --> AUTH[账号会话与 CSRF 校验]
     AUTH --> AGENT[LangGraph 售后 Agent]
     AUTH --> API[直接办理 API]
     AGENT --> RAG[检索与证据复核]
@@ -38,11 +38,17 @@ flowchart LR
 
 ## 核心能力
 
+### 账号、历史会话与图片问答
+
+- `/demo` 提供账号登录、本人历史记录、连续追问和私有图片附件；聊天历史由PostgreSQL持久化，Redis检查点继续管理执行进度。登录使用可撤销HttpOnly Cookie与CSRF校验，不再要求普通用户手填调试令牌。
+- 已校验图片直接输入视觉模型，支持多图、追问及PDF政策联查；图片路径无业务写工具。默认本地Ollama；显式切换云端后须逐轮图片外发同意。模拟仅留给测试及历史记录。
+- 初始化、限制与真实验证范围见 [登录/历史/多模态使用说明](docs/customer-portal-and-vision.md)。云端视觉历史批次因429停止；本地两张合成图验收见[本地校准](reports/context-validation-20261024.md)，不代表售后图片准确率。
+
 ### Agent 的实际任务
 
 - 售后资格按商品类别、完好状态、下单时确认及商家承诺判断；质量问题单独核实，缺少事实转人工。分类规则及官方依据见 [分类售后规则](docs/category-return-policy.md)。
 
-- 当问题同时包含订单编号和政策、流程或时效，Agent 逐步选择订单查询与知识检索；每轮至多执行一个受控工具，工具步数最多 3 次。用户可在 `/demo` 查看工具轨迹。
+- 当问题同时包含订单编号和政策、流程或时效，Agent 逐步选择订单查询与知识检索；每轮至多执行一个受控工具，工具步数最多 3 次。普通门户展示业务结果，原始工具轨迹只在受权限保护的开发入口查看。
 - 联合问题只有同时取得有效订单结果和经门禁筛选的政策片段才算完成。模型提前给结论时提醒其补足缺失的只读工具一次；仍未补足则拒答。
 - 最终联合回答由程序使用已校验的订单字段、政策原文与页码组装。通用退款时效不会被说成该订单已有确定到账日期。
 - 普通知识问答也从核验后的摘录确定性组装，不沿用模型自由生成的事实再追加引用。证据审查通过的完整集合若超过返回上限，则报告证据不足，不能截去必要片段后仍宣称充分。
@@ -62,7 +68,7 @@ flowchart LR
 ### 显式 API 与业务边界
 
 - 使用 Pydantic 定义工具参数，拒绝缺失字段、非法编号和额外参数。
-- 部署模式使用 Bearer Token 认证用户，并按用户隔离 LangGraph Checkpoint；知识库上传额外要求 knowledge_admin 角色。
+- 浏览器使用可撤销账号会话，内部工具使用服务端映射的 Bearer 身份；按用户隔离 LangGraph Checkpoint，知识库上传额外要求 knowledge_admin 角色。
 - Python 调 Java 时同时转发用户身份和仅服务端持有的内部令牌；浏览器、模型、用户消息和 PDF 都拿不到该令牌，不能绕过编排层直接调用业务写接口。
 - `/service/knowledge/answer` 返回政策原文与页码；规则模式无模型调用，真实复核模式只允许模型挑选可验证的逐字引文。
 - `/service/orders/{order_id}`、资格与草稿接口直接调用 Java；Java 重新认证调用链、校验订单归属、资格、金额和状态。
@@ -86,23 +92,36 @@ flowchart LR
 
 ## 快速启动
 
-要求 Docker Desktop 或兼容的 Docker Compose 环境。
+要求 Docker Desktop 或兼容的 Docker Compose、Python 3.12+ 和本机 Ollama。默认配置使用本地模型，并需要准备不进入Git的分词器与BGE资源；只启动容器不足以完成首次安装。已准备好资源时可跳过下载与导出，完整命令见[本地运行说明](docs/local-model-runtime.md)。
 
 ```powershell
 Copy-Item .env.example .env
 # 在 .env 中替换 OPSPILOT_AUTH_TOKENS 与 OPSPILOT_INTERNAL_SERVICE_TOKEN 的占位值
+# 首次准备：按本地运行说明安装依赖、获取 qwen3-vl:4b，随后执行
+python scripts/export_context_tokenizer.py
+python scripts/cache_memory_embedding.py
 docker compose up --build -d
 docker compose ps
 ```
 
+首次使用账号会话页，须初始化缺失表和本机演示账号；不会覆盖已有密码：
+
+```powershell
+docker compose exec -T api python scripts/initialize_customer_portal.py --initialize-missing
+New-Item -ItemType Directory -Path output -Force
+docker cp opspilot-api:/app/output/customer-login-access.txt ./output/customer-login-access.txt
+```
+
+在本机查看该文件获取随机演示密码，不要上传或提交。也可使用已安装项目依赖的本机Python运行同一初始化脚本。详见 [账号与图片问答说明](docs/customer-portal-and-vision.md)。
+
 服务健康后访问：
 
-- FastAPI 文档：<http://127.0.0.1:8011/docs>
+- FastAPI 文档 `/docs`：默认关闭；须显式开启开发入口并使用 developer 身份。
 - 售后 Agent：<http://127.0.0.1:8011/demo>
 - 直接办理页面：<http://127.0.0.1:8011/service>
 - Java 订单接口只接受 Python 服务携带的双重凭据，不作为浏览器公开入口。
 
-默认 Compose 不注入模型 API Key，适合使用虚构数据进行 mock、数据库、Redis 和 Java 跨服务联调。Compose 会强制启用身份认证；演示页只把用户访问令牌保存在当前标签页的 sessionStorage。真实模型模式必须通过部署环境单独注入密钥，禁止提交 `.env`。
+默认Compose不注入云端Key，使用须单独运行的宿主机Ollama；部署强制认证，门户采用HttpOnly会话Cookie及CSRF校验。普通用户无需填令牌或选择模型。云端仅由服务端显式配置，禁止提交 `.env`。
 
 Compose 将 FastEmbed 的模型缓存目录设为现有持久卷路径，避免 API 容器重建后从临时目录重复下载本地向量模型。
 
@@ -132,7 +151,7 @@ $env:RUN_REDIS_INTEGRATION='0'
 $env:RUN_REDIS_RATE_LIMIT_INTEGRATION='0'
 $env:RUN_POSTGRES_INTEGRATION='0'
 .\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
-node --test static/demo.test.cjs static/service.test.cjs
+node --test static/demo.test.cjs static/service.test.cjs static/portal.test.cjs
 ```
 
 本轮 [工具授权与证据链路修复验证](reports/review-fixes-20261005.md) 记录了 501 项 Python 测试通过、7 项集成测试跳过、4 项页面测试通过，以及 8 条隔离模拟流程无退化；未调用真实模型。
@@ -195,7 +214,9 @@ mvn -B -ntp test
 
 ## 当前边界
 
+- [会话上下文管理](docs/conversation-context.md)：近期对话、带来源的抽取摘要、本人当前会话的 BGE 持久语义召回、Qwen 文本 token 计数和历史分页；不继承历史确认。已完成[本机部署与校准](reports/context-validation-20261024.md)，保留图片估算偏差与失败记录，不宣称摘要无损或端到端模型成功率。
+
 - 这是使用虚构数据的可复现个人项目，不宣称生产用户、线上流量或商业收益。
 - 持久化混合检索、事务和审批链路已有本机验收；本轮使用固定向量、重排测试替身及模拟模型验证工程行为，没有新增真实模型或真实重排效果指标。
 - 三态规则只负责便宜且可解释的前置分流；真实模式的语义审查仍受模型质量、限流和测试集规模影响，不能视为通用事实正确性保证。
-- 当前使用配置型演示 Token，不包含注册登录、令牌轮换或企业 OAuth/OIDC；自动清理过期草稿、集中式可观测性和更大规模真实模型评测仍属于后续生产化工作。
+- 当前提供预置账号登录与可撤销Cookie，内部身份仍由服务端配置；无开放注册、密码找回或企业OAuth/OIDC。自动清理、集中式可观测性和更大规模真实模型评测仍属后续工作。

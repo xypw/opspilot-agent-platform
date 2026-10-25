@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "case": "incomplete",
+      "http_status": 200,
+      "passed": true,
+      "duration_ms": 88,
+      "answer": "你提供的订单号“101”不符合当前系统的完整编号格式。请提供类似 O-7101 的完整订单号；我不会自动补前缀或补位。本次尚未查询订单，因此不能判断它是否存在。",
+      "model_http_attempts": 0
+    },
+    {
+      "case": "short_prefixed",
+      "http_status": 200,
+      "passed": true,
+      "duration_ms": 52,
+      "answer": "你提供的订单号“O-101”不符合当前系统的完整编号格式。请提供类似 O-7101 的完整订单号；我不会自动补前缀或补位。本次尚未查询订单，因此不能判断它是否存在。",
+      "model_http_attempts": 0
+    },
+    {
+      "case": "missing",
+      "http_status": 200,
+      "passed": true,
+      "duration_ms": 684,
+      "answer": "未找到你可访问的订单 O-9999，请核对完整订单号或当前登录账号。",
+      "model_http_attempts": 0
+    },
+    {
+      "case": "existing",
+      "http_status": 200,
+      "passed": true,
+      "duration_ms": 88,
+      "answer": "订单 O-7101：商品 演示机械键盘，当前状态 已送达；订单金额 ¥399.00。",
+      "model_http_attempts": 0
+    },
+    {
+      "case": "foreign",
+      "http_status": 200,
+      "passed": true,
+      "duration_ms": 78,
+      "answer": "未找到你可访问的订单 O-7102，请核对完整订单号或当前登录账号。",
+      "model_http_attempts": 0
+    }
+  ],
+  "passed": 5,
+  "model_calls": 0,
+  "scope": "明确单订单只读分流，不代表自然语言Agent或模型效果"
+}

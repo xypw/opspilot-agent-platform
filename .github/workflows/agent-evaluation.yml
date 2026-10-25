@@ -16,11 +16,13 @@ jobs:
       ORDER_QUERY_BACKEND: memory
       KNOWLEDGE_STORE_BACKEND: memory
       OPSPILOT_AUTH_REQUIRED: "false"
+      OPSPILOT_MODEL_PROVIDER: zhipu
       MODEL_RATE_LIMIT_REQUESTS: "0"
       SILICONFLOW_API_KEY: " "
       RUN_REDIS_INTEGRATION: "0"
       RUN_REDIS_RATE_LIMIT_INTEGRATION: "0"
       RUN_POSTGRES_INTEGRATION: "0"
+      RUN_PORTAL_POSTGRES_INTEGRATION: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,7 +40,7 @@ jobs:
         run: python -X utf8 -m unittest discover -s tests
 
       - name: Run demo page tests
-        run: node --test static/demo.test.cjs static/service.test.cjs
+        run: node --test static/demo.test.cjs static/service.test.cjs static/portal.test.cjs
 
       - name: Generate current Agent evaluation report
         run: >-

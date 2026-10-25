@@ -1,0 +1,75 @@
+{
+  "model": "qwen3-vl:4b",
+  "ollama_version": "0.40.5",
+  "budget": 12,
+  "charged": 11,
+  "scope": "synthetic local prompt accounting; not task accuracy",
+  "rows": [
+    {
+      "case": "tools",
+      "attempt": 6,
+      "prompt_tokens": 459,
+      "output_tokens": 301,
+      "counted_input": 459,
+      "counter": "qwen2_bpe_ollama0405_text",
+      "answer": "OK",
+      "passed": true,
+      "seconds": 6.062
+    },
+    {
+      "case": "tool-result",
+      "attempt": 7,
+      "prompt_tokens": 492,
+      "output_tokens": 62,
+      "counted_input": 492,
+      "counter": "qwen2_bpe_ollama0405_text",
+      "answer": "OK",
+      "passed": true,
+      "seconds": 1.096
+    },
+    {
+      "case": "json",
+      "attempt": 8,
+      "prompt_tokens": 19,
+      "output_tokens": 51,
+      "counted_input": 19,
+      "counter": "qwen2_bpe_ollama0405_text",
+      "answer": "{\"status\": \"OK\"}",
+      "passed": true,
+      "seconds": 0.907
+    },
+    {
+      "case": "long-chinese",
+      "attempt": 9,
+      "prompt_tokens": 1472,
+      "output_tokens": 373,
+      "counted_input": 1472,
+      "counter": "qwen2_bpe_ollama0405_text",
+      "answer": "OK",
+      "passed": true,
+      "seconds": 6.65
+    },
+    {
+      "case": "red-image",
+      "attempt": 10,
+      "prompt_tokens": 1044,
+      "output_tokens": 94,
+      "counted_input": 1042,
+      "counter": "qwen2_bpe_ollama0405_text_plus_visual_reserve",
+      "answer": "Background color: red  \nVisible English word: RED",
+      "passed": true,
+      "seconds": 3.129
+    },
+    {
+      "case": "blue-image",
+      "attempt": 11,
+      "prompt_tokens": 1044,
+      "output_tokens": 92,
+      "counted_input": 1042,
+      "counter": "qwen2_bpe_ollama0405_text_plus_visual_reserve",
+      "answer": "Background color: blue  \nVisible English word: BLUE",
+      "passed": true,
+      "seconds": 2.433
+    }
+  ]
+}

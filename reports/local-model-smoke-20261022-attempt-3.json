@@ -1,0 +1,66 @@
+{
+  "provider": "ollama",
+  "model": "qwen3-vl:4b",
+  "budget": 24,
+  "http_attempts": 17,
+  "budget_accounting": "累计保守计数；失败或中断预扣最坏上界，不因重跑清零；成功按服务端HTTP遥测核销。",
+  "cloud_model_http_attempts": 0,
+  "passed": 5,
+  "cases": [
+    {
+      "case": "greeting",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 79,
+      "status": "COMPLETED",
+      "answer": "你好，我是售后助手。你可以查询自己的订单、咨询退货政策，或上传商品图片。查询具体订单时请提供订单号。"
+    },
+    {
+      "case": "query_instructions",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 57,
+      "status": "COMPLETED",
+      "answer": "请直接发送你的订单号，例如“查询订单 O-7101”。我会查询当前状态；也可以登录后进入“直接办理售后”页面。"
+    },
+    {
+      "case": "vision_red",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 1,
+      "duration_ms": 3441,
+      "status": "COMPLETED",
+      "answer": "图片观察（模型推断，需核对）：\n方块主要颜色是红色\n\n不确定与待核实：图片中仅显示红色方块，无其他细节，无法确认是否为纯色或有其他元素\n\n图片问答不会批准或提交退款；办理申请须另行查询订单、校验资格并明确确认。"
+    },
+    {
+      "case": "vision_blue",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 1,
+      "duration_ms": 7187,
+      "status": "COMPLETED",
+      "answer": "图片观察（模型推断，需核对）：\n蓝色\n\n不确定与待核实：无明显不确定因素\n\n图片问答不会批准或提交退款；办理申请须另行查询订单、校验资格并明确确认。"
+    },
+    {
+      "case": "query_order",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 2,
+      "duration_ms": 9446,
+      "status": "COMPLETED",
+      "answer": "订单 O-8244 已送达，商品为 local-model-smoke-aa339538dd3d4acc94995cff5452e631，送达时间为 2026-10-21，订单金额为 35.55 元。"
+    },
+    {
+      "case": "policy_evidence",
+      "http_status": 503,
+      "passed": false,
+      "local_model_http_attempts": 11,
+      "duration_ms": 16563,
+      "status": null,
+      "answer": ""
+    }
+  ],
+  "limits": "小批合成数据，不代表生产准确率；未确认正式业务写入。"
+}

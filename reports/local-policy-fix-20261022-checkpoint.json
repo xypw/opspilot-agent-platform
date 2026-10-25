@@ -1,0 +1,76 @@
+{
+  "source": "Redis checkpoint of completed synthetic policy task; no model request during recheck",
+  "original_report": "local-policy-fix-20261022-attempt-1.json",
+  "original_assertion_issue": "Checked private rag_evidence field absent from public AgentGraphResponse",
+  "public_result": {
+    "thread_id": "04082da9-27a2-4cd7-ae66-5e3d01935a7f",
+    "mode": "live",
+    "status": "COMPLETED",
+    "answer": "审核通过的退款通常会在三个工作日内按原支付路径到账\n\n来源：《OpsPilot企业服务制度样例》第1页",
+    "tool_name": "search_knowledge_base",
+    "tool_result": [
+      {
+        "chunk_id": "integration-policy-20260913-p1-c0",
+        "title": "OpsPilot企业服务制度样例",
+        "page": 1,
+        "content": "审核通过的退款通常会在三个工作日内按原支付路径到账",
+        "source_start": null,
+        "source_end": null,
+        "heading_path": [],
+        "parser_version": "legacy",
+        "score": 0.03225806451612903
+      }
+    ],
+    "action_id": null,
+    "order_id": null,
+    "return_reason": null,
+    "return_review": null,
+    "return_draft": null,
+    "return_application": null,
+    "tool_steps": 1,
+    "tool_trace": [
+      {
+        "step": 1,
+        "tool_name": "search_knowledge_base",
+        "result": [
+          {
+            "chunk_id": "demo-policy-cn-20260914-p1-c0",
+            "title": "虚构中文售后制度",
+            "page": 1,
+            "content": "OpsPilot 虚构售后制度\n仅用于教学演示；以下时效和业务数据均为虚构示例。\n退款到账时间\n普通退款：申请审核通过后，预计 3 个工作日内到账。\n紧急退款：标记为紧急且审核通过后，预计 3 小时内到账。\n高优先级工单\n高优先级工单将在 20 分钟内获得首次响应。\nOpsPilot Demo Policy  |  虚构资料  |  第 1 页",
+            "source_start": null,
+            "source_end": null,
+            "heading_path": [],
+            "parser_version": "legacy",
+            "score": 0.03278688524590164
+          },
+          {
+            "chunk_id": "integration-policy-20260913-p1-c0",
+            "title": "OpsPilot企业服务制度样例",
+            "page": 1,
+            "content": "OpsPilot 企业服务制度样例\n内部教学资料 - 用于 RAG 上传、检索与引用演示\n第 1 页\n 企业客户服务与工单处理制度\n 版本 1.0 · 生效日期：2026年9月1日\n一、售后与退款\n客户提交退款申请后，系统会进入审核流程。审核通过的退款通常会在三个工作日内按原支付路径到账\n；银行或支付机构的处理延迟不计入平台处理时限。\n如果超过三个工作日仍未到账，客服应先查询订单状态和退款流水，再创建退款异常工单，不得要求客户重复提交\n退款申请。\n二、订单状态查询\n订单状态包括待支付、处理中、已发货、已完成和已取消。客服回答订单问题时必须先查询订单编号，\n不得根据客户描述猜测订单状态。\n三、电子发票\n订单完成后可以申请电子发票。发票审核通过后会发送到客户填写的邮箱；邮箱填写错误时，应先核验\n订单信息，再重新发送。\n业务事项\n标准处理时限\n升级条件\n退款到账\n审核通过后3个工作日\n超过时限仍未到账\n电子发票\n订单完成后可申请\n审核失败或邮箱错误\n普通订单咨询\n首次响应30分钟内\n状态异常或信息不一致",
+            "source_start": null,
+            "source_end": null,
+            "heading_path": [],
+            "parser_version": "legacy",
+            "score": 0.03225806451612903
+          }
+        ]
+      }
+    ],
+    "model_requests": 3,
+    "simulated_model_requests": 0,
+    "model_http_attempts": 3,
+    "model_retry_count": 0,
+    "model_turn_durations_ms": [
+      16501.454,
+      43233.185,
+      3819.759
+    ],
+    "model_http_attempt_durations_ms": [
+      16501.432,
+      43233.172,
+      3819.742
+    ]
+  }
+}

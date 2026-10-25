@@ -110,6 +110,9 @@ def build_configured_reranker() -> RerankerService | None:
     ``os.environ`` 适合 Docker/部署环境，``.env`` 方便本地学习；环境变量优先，
     从而无需为了部署去修改代码。
     """
+    from model_runtime import model_provider
+    if model_provider() == "ollama":
+        return None  # 本地模式不能因为本机恰好有旧Key就把问题外发到云端重排。
     env_file = dotenv_values(".env")
     api_key = (os.getenv("SILICONFLOW_API_KEY") or env_file.get("SILICONFLOW_API_KEY") or "").strip()
     if not api_key:

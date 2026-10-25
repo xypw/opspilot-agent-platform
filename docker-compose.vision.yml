@@ -1,0 +1,8 @@
+# 仅在明确允许外部模型调用时合并；密钥来自本机.env，不写入镜像或前端。
+services:
+  api:
+    environment:
+      OPSPILOT_MODEL_PROVIDER: zhipu
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:?Configure your existing Zhipu key locally}
+      VISION_ENABLED: "true"
+      VISION_MODEL: glm-4.6v-flash

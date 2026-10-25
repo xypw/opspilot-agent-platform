@@ -29,7 +29,8 @@ COMPOUND_QUESTION = "退款多久到账，退回哪个账户？"
 TOKEN = "offline-review-customer-token"
 AUTH_ENV = {
     "OPSPILOT_AUTH_REQUIRED": "true",
-    "OPSPILOT_AUTH_TOKENS": json.dumps({TOKEN: {"user_id": "U-1002", "roles": ["customer"]}}),
+    "OPSPILOT_DEBUG_ENABLED": "true",
+    "OPSPILOT_AUTH_TOKENS": json.dumps({TOKEN: {"user_id": "U-1002", "roles": ["customer", "developer"]}}),
     "OPSPILOT_INTERNAL_SERVICE_TOKEN": "offline-review-internal-token",
 }
 

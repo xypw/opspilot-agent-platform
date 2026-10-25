@@ -1,0 +1,16 @@
+{
+  "model": "qwen3-vl:4b",
+  "ollama_version": "0.40.5",
+  "budget": 12,
+  "charged": 2,
+  "scope": "synthetic local prompt accounting; not task accuracy",
+  "rows": [
+    {
+      "case": "plain",
+      "attempt": 2,
+      "passed": false,
+      "error": "ModelAdmissionUnavailable",
+      "seconds": 1.382
+    }
+  ]
+}

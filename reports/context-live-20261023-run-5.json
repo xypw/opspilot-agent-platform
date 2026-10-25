@@ -1,0 +1,20 @@
+{
+  "model": "qwen3-vl:4b",
+  "ollama_version": "0.40.5",
+  "budget": 12,
+  "charged": 5,
+  "scope": "synthetic local prompt accounting; not task accuracy",
+  "rows": [
+    {
+      "case": "plain",
+      "attempt": 5,
+      "prompt_tokens": 48,
+      "output_tokens": 243,
+      "counted_input": 48,
+      "counter": "qwen2_bpe_ollama0405_text",
+      "answer": "OK",
+      "passed": true,
+      "seconds": 13.303
+    }
+  ]
+}

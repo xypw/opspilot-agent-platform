@@ -1,0 +1,38 @@
+{
+  "provider": "ollama",
+  "model": "qwen3-vl:4b",
+  "budget": 24,
+  "http_attempts": 1,
+  "cloud_model_http_attempts": 0,
+  "passed": 3,
+  "cases": [
+    {
+      "case": "greeting",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 250,
+      "status": "COMPLETED",
+      "answer": "你好，我是售后助手。你可以查询自己的订单、咨询退货政策，或上传商品图片。查询具体订单时请提供订单号。"
+    },
+    {
+      "case": "query_instructions",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 245,
+      "status": "COMPLETED",
+      "answer": "请直接发送你的订单号，例如“查询订单 O-7101”。我会查询当前状态；也可以登录后进入“直接办理售后”页面。"
+    },
+    {
+      "case": "vision_red",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 15302,
+      "status": "COMPLETED",
+      "answer": "图片观察（模型推断，需核对）：\n红色\n\n不确定与待核实：图片中仅显示红色方块，无其他颜色或细节信息，无法确认是否为纯色或有其他元素\n\n图片问答不会批准或提交退款；办理申请须另行查询订单、校验资格并明确确认。"
+    }
+  ],
+  "limits": "小批合成数据，不代表生产准确率；未确认正式业务写入。"
+}

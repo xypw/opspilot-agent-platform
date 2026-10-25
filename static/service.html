@@ -8,13 +8,12 @@
 </head>
 <body>
   <header><div><strong>OpsPilot</strong><span>售后直接办理</span></div><a href="/demo">咨询 Agent ↗</a></header>
-  <main>
+  <main id="service-main" hidden>
     <aside>
       <p class="eyebrow">知识资料</p><h1>查询有出处，<br>申请经确认。</h1>
       <p>知识问答返回可核对的原文与页码；订单查询和申请直接调用确定性业务接口。</p>
-      <label for="access-token">演示访问令牌</label>
-      <input id="access-token" type="password" autocomplete="off" placeholder="仅保存在当前浏览器标签页">
-      <form id="upload-form" class="card">
+      <p>本页使用已登录账号，退出或登录失效后须重新登录。<span id="service-identity"></span></p>
+      <form id="upload-form" class="card" hidden>
         <h2>上传政策 PDF</h2>
         <label for="document-title">资料标题</label><input id="document-title" required maxlength="200">
         <label for="document-file">PDF 文件</label><input id="document-file" type="file" accept=".pdf,application/pdf" required>

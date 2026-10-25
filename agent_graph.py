@@ -26,9 +26,12 @@ from agent_task_contract import (
 from evidence_review import EvidenceReviewer, EvidenceReviewReply, verify_evidence_review
 from evidence_support import partition_evidence_for_question
 from grounding_policy import answer_when_evidence_is_missing, append_verified_citations
-from order_service_client import OrderServiceError
+from order_service_client import OrderServiceError,OrderResponse
 from preview_tool_call import build_initial_messages, extract_tool_preview, load_api_key
 from retry_policy import ModelRequestTelemetry, request_message_with_retry
+from model_runtime import model_provider
+from service_guidance import service_guidance,simple_order_query
+from model_context import history_references
 from tool_args import RequestPriorityChangeArgs, SearchKnowledgeBaseArgs
 from tool_executor import execute_tool
 from tool_messages import build_tool_message
@@ -203,14 +206,15 @@ class ConfiguredAgentModelGateway:
             raise AgentGraphInputError("不支持的 Agent 模式。")
 
         try:
-            api_key = load_api_key()
+            api_key = "local-no-cloud-credential" if model_provider() == "ollama" else load_api_key()
         except (OSError, ValueError):
             raise AgentGraphConfigurationError(
                 "真实模式未配置可用密钥；请只在本地 .env 中设置。"
             ) from None
 
         # API Key 只停留在这一小段请求代码中，不进入 LangGraph Checkpoint State。
-        with httpx.Client(timeout=httpx.Timeout(45, connect=10), trust_env=False) as client:
+        timeout = 90 if model_provider() == "ollama" else 45
+        with httpx.Client(timeout=httpx.Timeout(timeout, connect=5), trust_env=False) as client:
             telemetry = ModelRequestTelemetry()
             try:
                 message = request_message_with_retry(
@@ -219,7 +223,10 @@ class ConfiguredAgentModelGateway:
                     messages,
                     offer_tools=offer_tools,
                     telemetry=telemetry,
+                    max_attempts=1 if model_provider() == "ollama" else 3,
                 )
+                # Accounting metadata is not model conversation content.
+                message.pop('_context_usage',None)
             except Exception as error:
                 # 异常继续保持原类型，供现有 API 映射处理；只附加数值诊断，不附加请求正文。
                 error.model_http_attempts = telemetry.http_attempts
@@ -377,6 +384,19 @@ def build_agent_graph(
 
     def call_model_node(state: AgentGraphState) -> AgentGraphState:
         _require_enabled_state_tools(state)
+        if not state.get("tool_trace"):
+            guidance = service_guidance(state.get("task_question",""))
+            if guidance:
+                return {"answer":guidance,"status":"COMPLETED","retry_model":False}
+            order_id=simple_order_query(state.get("task_question",""))
+            if state["mode"]=="live" and order_id is not None:
+                # 明确的只读操作由程序分发，不让模型猜订单号或把简单查询变成生成失败。
+                call_id="direct_order_"+state["thread_id"]
+                arguments=json.dumps({"order_id":order_id})
+                message={"role":"assistant","content":None,"tool_calls":[{
+                    "id":call_id,"type":"function","function":{"name":"query_order","arguments":arguments}}]}
+                return {"tool_name":"query_order","arguments_json":arguments,"tool_call_id":call_id,
+                        "tool_steps":1,"messages":state["messages"]+[message],"retry_model":False,"status":"RUNNING"}
         # 达到上限后不再向模型提供工具，强制进入最终回答，防止无限循环。
         offer_tools = state.get("tool_steps", 0) < MAX_TOOL_STEPS
         gateway_reply = model_gateway.request(
@@ -484,6 +504,22 @@ def build_agent_graph(
             "tool_name": state["tool_name"],
             "result": result,
         }]
+        direct_id=simple_order_query(state.get("task_question",""))
+        if state["mode"]=="live" and direct_id is not None and state["tool_name"]=="query_order":
+            if result is None:
+                answer=f"未找到你可访问的订单 {direct_id}，请核对完整订单号或当前登录账号。"
+            else:
+                try:
+                    order=OrderResponse.model_validate(result)
+                    if order.id!=direct_id:raise ValueError()
+                except ValueError:
+                    raise OrderServiceError("订单服务返回的数据不符合当前查询，未使用该结果") from None
+                labels={"delivered":"已送达","shipped":"已发货","processing":"处理中","cancelled":"已取消"}
+                answer=(f"订单 {order.id}：商品 {order.product}，当前状态 {labels[order.status]}；"
+                        f"订单金额 ¥{order.amount_cents//100}.{order.amount_cents%100:02d}。")
+            return {"tool_result":result,"tool_trace":trace,"order_id":direct_id,
+                    "messages":state["messages"]+[build_tool_message(state["tool_call_id"],result)],
+                    "status":"COMPLETED","answer":answer}
         evidence = state.get("rag_evidence", [])
         review_updates = {}
         if state["tool_name"] == "search_knowledge_base":
@@ -827,9 +863,13 @@ def start_agent_graph(
     graph,
     request: AgentGraphStartRequest,
     user_id: str = "local-demo-user",
+    *, conversation_history: list[dict] | None = None,
 ) -> AgentGraphResponse:
     # 用与旧 Agent 相同的系统提示词创建全新消息，避免跨会话污染历史。
     messages = build_initial_messages(request.message)
+    if conversation_history:
+        # 仅带入用户可见文本，不重放历史工具调用/批准信息。当前业务事实必须重新查询。
+        messages = [messages[0], *history_references(conversation_history), messages[-1]]
     # 为这次 HTTP 请求构造 LangGraph 查找和保存 Checkpoint 所需的 thread_id。
     config = _thread_config(user_id, request.thread_id)
     if graph.get_state(config).values:

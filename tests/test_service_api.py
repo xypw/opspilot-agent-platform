@@ -122,7 +122,10 @@ class ServiceApiTests(unittest.TestCase):
             "OPSPILOT_INTERNAL_SERVICE_TOKEN": "test-internal-token-0000001",
         }):
             response = self.client.get("/service/orders/O-2001")
+            bearer = self.client.get("/service/orders/O-2001", headers={
+                "Authorization":"Bearer test-token-0000000000001"})
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(bearer.status_code, 401)
 
 
 if __name__ == "__main__":

@@ -76,6 +76,9 @@ def _internal_service_token() -> str:
 
 def authenticate_request(request: Request) -> AuthenticatedUser:
     """验证调用者；启用鉴权但未配置令牌时 fail closed。"""
+    cached = getattr(request.state, "authenticated_user", None)
+    if isinstance(cached, AuthenticatedUser):
+        return cached
     if not auth_required():
         return AuthenticatedUser(
             "local-demo-user", frozenset({"customer", "knowledge_admin"}), ""
@@ -86,6 +89,9 @@ def authenticate_request(request: Request) -> AuthenticatedUser:
         raise HTTPException(status_code=503, detail="服务端鉴权配置无效。") from None
     if not tokens or len(_internal_service_token()) < 16:
         raise HTTPException(status_code=503, detail="服务端鉴权配置不完整。")
+    if not request.headers.get("Authorization") and request.cookies.get("opspilot_session"):
+        from portal_auth import authenticate_session
+        return authenticate_session(request)
     scheme, _, credential = request.headers.get("Authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not credential:
         raise HTTPException(status_code=401, detail="缺少 Bearer 访问令牌。")
@@ -93,6 +99,25 @@ def authenticate_request(request: Request) -> AuthenticatedUser:
         if hmac.compare_digest(credential, configured):
             return user
     raise HTTPException(status_code=401, detail="访问令牌无效。")
+
+
+def authenticate_service_request(request: Request) -> AuthenticatedUser:
+    """浏览器售后入口只接受登录会话，旧调试 Bearer 不能替代账号登录。"""
+    if not auth_required():
+        return authenticate_request(request)  # 仅显式关闭鉴权的离线教学/测试模式。
+    if not request.cookies.get("opspilot_session"):
+        raise HTTPException(status_code=401, detail="请先登录后办理售后。")
+    # 先核验部署配置；随后独立验证 Cookie，不能仅信任 Bearer 或中间件缓存身份。
+    authenticate_request(request)
+    from portal_auth import authenticate_session
+    return authenticate_session(request)
+
+
+def debug_enabled() -> bool:
+    raw = os.getenv("OPSPILOT_DEBUG_ENABLED")
+    if raw is None:
+        raw = _local_values().get("OPSPILOT_DEBUG_ENABLED", "false")
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def require_role(user: AuthenticatedUser, role: str) -> None:

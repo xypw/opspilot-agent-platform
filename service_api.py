@@ -10,7 +10,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 
-from auth import authenticate_request
+from auth import authenticate_service_request
 from evidence_review import ConfiguredEvidenceReviewer, EvidenceReviewReply, verify_evidence_review
 from evidence_support import partition_evidence_for_question
 from knowledge_base import KnowledgeStoreUnavailableError, search_knowledge_candidates
@@ -50,7 +50,7 @@ def build_service_router(
     evidence_reviewer: ConfiguredEvidenceReviewer,
 ) -> APIRouter:
     router = APIRouter(prefix="/service", tags=["显式售后服务"],
-                       dependencies=[Depends(authenticate_request)])
+                       dependencies=[Depends(authenticate_service_request)])
 
     @router.post("/knowledge/answer", response_model=KnowledgeAnswerResponse)
     def answer_knowledge(request: KnowledgeAnswerRequest) -> KnowledgeAnswerResponse:

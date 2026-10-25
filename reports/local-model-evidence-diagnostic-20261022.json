@@ -1,0 +1,9 @@
+{
+  "http_status": 200,
+  "done_reason": "stop",
+  "content": "{\"supported\": true, \"supporting_quotes\": [{\"chunk_id\": \"synthetic-policy-1\", \"text\": \"退款审核通过后，款项将在1至3个工作日原路退回。\"}], \"missing_information\": \"\"}",
+  "thinking_length": 1723,
+  "eval_count": 822,
+  "http_attempts": 1,
+  "scope": "仅合成政策诊断，不是评测；预算累计不清零。"
+}

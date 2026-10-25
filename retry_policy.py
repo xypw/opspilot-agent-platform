@@ -12,6 +12,7 @@ import httpx
 
 from preview_tool_call import ModelAPIError, request_message
 from model_rate_limit import ModelAdmissionError
+from model_context import ContextBudgetExceeded
 
 
 # 408/429/5xx 通常表示暂时性服务或网络问题；400、401、403 等配置/请求错误不重试。
@@ -76,6 +77,9 @@ def request_message_with_retry(
                 )
             except ModelAdmissionError:
                 sent = False
+                raise
+            except ContextBudgetExceeded as error:
+                sent = bool(getattr(error,'request_sent',False))
                 raise
             except (httpx.RequestError, ModelAPIError) as error:
                 # 最后一次失败或不可恢复错误必须原样抛出，让 API 层返回明确状态。

@@ -1,0 +1,38 @@
+{
+  "provider": "ollama",
+  "model": "qwen3-vl:4b",
+  "budget": 24,
+  "http_attempts": 0,
+  "cloud_model_http_attempts": 0,
+  "passed": 2,
+  "cases": [
+    {
+      "case": "greeting",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 283,
+      "status": "COMPLETED",
+      "answer": "你好，我是售后助手。你可以查询自己的订单、咨询退货政策，或上传商品图片。查询具体订单时请提供订单号。"
+    },
+    {
+      "case": "query_instructions",
+      "http_status": 200,
+      "passed": true,
+      "local_model_http_attempts": 0,
+      "duration_ms": 251,
+      "status": "COMPLETED",
+      "answer": "请直接发送你的订单号，例如“查询订单 O-7101”。我会查询当前状态；也可以登录后进入“直接办理售后”页面。"
+    },
+    {
+      "case": "vision_red",
+      "http_status": 503,
+      "passed": false,
+      "local_model_http_attempts": 0,
+      "duration_ms": 16769,
+      "status": null,
+      "answer": ""
+    }
+  ],
+  "limits": "小批合成数据，不代表生产准确率；未确认正式业务写入。"
+}

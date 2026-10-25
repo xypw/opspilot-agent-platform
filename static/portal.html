@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OpsPilot · 售后会话</title>
+  <link rel="stylesheet" href="/demo-assets/demo.css">
+  <link rel="stylesheet" href="/demo-assets/portal.css">
+  <script src="/demo-assets/portal.js" defer></script>
+</head>
+<body>
+  <header><div><strong>OpsPilot</strong><span>订单 · 政策 · 图片咨询</span></div>
+    <nav><a id="service-link" href="/service" hidden>直接办理售后</a><span id="identity">未登录</span><button id="logout" hidden>退出登录</button></nav>
+  </header>
+  <div id="login-panel" class="login-shell">
+    <form id="login-form" class="card">
+      <p class="eyebrow">欢迎回来</p><h1>继续你的售后会话</h1>
+      <p>登录后查看历史记录，查询订单与政策，或上传图片进行咨询。</p>
+      <label for="username">账号</label><input id="username" autocomplete="username" maxlength="40" required>
+      <label for="password">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="128" required>
+      <button type="submit">登录</button>
+      <p class="note">演示账号由管理员在本机初始化，无公共默认密码。不要上传真实证件或敏感订单资料。</p>
+      <p id="login-notice" role="alert"></p>
+    </form>
+  </div>
+  <main id="workspace" hidden>
+    <aside class="card history-sidebar">
+      <div class="section-title"><h2>我的会话</h2><button id="new-conversation" type="button">＋ 新会话</button></div>
+      <div id="conversation-list" aria-label="历史会话"></div>
+      <button id="more-conversations" class="secondary" hidden>加载更多</button>
+      <p class="note">聊天记录持久保存；执行检查点有保留期。打开历史不会重发模型请求或自动确认申请。</p>
+    </aside>
+    <section class="conversation-panel">
+      <div class="section-title"><h2 id="conversation-title">新会话</h2><button id="reload" class="secondary">刷新会话</button></div>
+      <p id="notice" role="status" aria-live="polite"></p>
+      <div id="messages" aria-label="聊天记录"><p class="empty-state">可以询问订单与政策，或上传商品图片。查询具体订单时请提供订单号。</p></div>
+      <button id="older-messages" type="button" class="secondary" hidden>加载更早消息</button>
+      <form id="composer" class="card">
+        <label for="message">你的问题</label>
+        <textarea id="message" rows="3" maxlength="1000" required placeholder="例如：查询订单 O-7101；或上传图片后询问商品表面有什么异常。"></textarea>
+        <div id="attachments" class="attachments" aria-label="本轮图片"></div>
+        <div class="row"><label for="image-files">添加图片</label><input id="image-files" type="file" accept="image/png,image/jpeg" multiple></div>
+        <p class="note">每轮最多3张PNG/JPEG，每张不超过4 MB。图片仅用于当前会话，不自动进入公共知识库。</p>
+        <div class="row"><button type="submit">发送问题</button></div>
+        <label id="external-consent-panel" class="check" hidden><input id="external-consent" type="checkbox">本轮同意将所选/沿用图片、问题及最近对话发送到云端模型用于识图。请先自行脱敏。</label>
+        <p class="note" id="vision-status">正在检查本机模型服务配置…</p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

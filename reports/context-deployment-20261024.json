@@ -1,0 +1,21 @@
+{
+  "checks_passed": 13,
+  "checks": [
+    "owner_login",
+    "page_http_0",
+    "page_http_1",
+    "page_http_2",
+    "137_turns_50_50_37",
+    "old_request_direct_lookup",
+    "original_source_lookup",
+    "foreign_source_hidden",
+    "foreign_cursor_hidden",
+    "all_synthetic_sources_indexed",
+    "semantic_source_recalled_after_recreation",
+    "old_source_reaches_bounded_history",
+    "semantic_owner_enforced"
+  ],
+  "llm_requests": 0,
+  "embedding": "real local BGE",
+  "synthetic_turns": 137
+}

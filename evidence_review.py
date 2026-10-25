@@ -10,10 +10,12 @@ import json
 
 import httpx
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field,ValidationError
 
 from evidence_support import TICKET_HIGH_PRIORITY_ALIASES
 from preview_tool_call import load_api_key
+from model_runtime import model_provider
+from ollama_gateway import LocalModelTruncatedError
 from retry_policy import ModelRequestTelemetry, request_message_with_retry
 
 
@@ -44,6 +46,10 @@ MAX_REVIEW_HTTP_ATTEMPTS = 3
 
 class EvidenceResponseFormatError(ValueError):
     """可进行一次格式纠正的输出错误；不包括工具调用、角色或证据验证失败。"""
+
+
+class EvidenceContractError(ValueError):
+    """证据判定或引文校验失败，不能伪装成未知业务写入。"""
 
 
 def build_evidence_review_messages(question: str, candidates: list[dict]) -> list[dict]:
@@ -94,6 +100,7 @@ def build_evidence_review_messages(question: str, candidates: list[dict]) -> lis
         "若证据充分，supported=true，至少返回一条候选原文中的连续引文，"
         "missing_information 为空字符串；若不足，supported=false，supporting_quotes 为空数组，"
         "并说明缺少什么信息。不得改写、拼接或编造引文。"
+        "只选足以支持结论的最少完整引文，不重复引用表达相同事实的多个片段。"
     )
     payload = {"question": question.strip(), "candidates": compact_candidates}
     return [
@@ -136,20 +143,29 @@ class ConfiguredEvidenceReviewer:
 
     def __call__(self, question: str, candidates: list[dict]) -> EvidenceReviewReply:
         messages = build_evidence_review_messages(question, candidates)
-        api_key = load_api_key()
+        api_key = "local-no-cloud-credential" if model_provider() == "ollama" else load_api_key()
         telemetry = ModelRequestTelemetry()
-        with httpx.Client(timeout=httpx.Timeout(45, connect=10), trust_env=False) as client:
+        timeout = 90 if model_provider() == "ollama" else 45
+        with httpx.Client(timeout=httpx.Timeout(timeout, connect=5), trust_env=False) as client:
             stage = "model_request"
             try:
                 for format_attempt in range(2):
                     part = ModelRequestTelemetry()
+                    truncated = None
                     stage = "model_request"
                     try:
                         message = request_message_with_retry(
                             api_key, client, messages, offer_tools=False,
-                            response_format={"type": "json_object"}, telemetry=part,
-                            max_attempts=MAX_REVIEW_HTTP_ATTEMPTS - telemetry.http_attempts,
+                            response_format=({"type":"json_schema","json_schema":{
+                                "name":"evidence_verdict","schema":EvidenceVerdict.model_json_schema()}}
+                                if model_provider()=="ollama" and format_attempt==0 else {"type":"json_object"}), telemetry=part,
+                            max_attempts=(1 if model_provider() == "ollama" else
+                                          MAX_REVIEW_HTTP_ATTEMPTS - telemetry.http_attempts),
                         )
+                    except LocalModelTruncatedError as error:
+                        if model_provider()!="ollama":
+                            raise
+                        truncated=error
                     finally:
                         # 每次发送仍经过共享准入；第二次被准入拒绝时不能多计 HTTP。
                         telemetry.http_attempts += part.http_attempts
@@ -160,9 +176,11 @@ class ConfiguredEvidenceReviewer:
                         telemetry.attempt_durations_ms.extend(part.attempt_durations_ms)
                     stage = "response_parse"
                     try:
+                        if truncated is not None:
+                            raise truncated
                         verdict = parse_evidence_review_message(message)
                         break
-                    except EvidenceResponseFormatError:
+                    except (EvidenceResponseFormatError,LocalModelTruncatedError):
                         if format_attempt or telemetry.http_attempts >= MAX_REVIEW_HTTP_ATTEMPTS:
                             raise
                         # 不回传畸形响应、不携带期望标签、不执行模型要求的任何工具。
@@ -189,13 +207,16 @@ def verify_evidence_review(
     raw_verdict: dict, candidates: list[dict], *, limit: int | None = None,
 ) -> tuple[EvidenceVerdict, list[dict]]:
     """拒绝矛盾判定与伪造引文，返回只包含核实摘录的证据副本。"""
-    verdict = EvidenceVerdict.model_validate(raw_verdict)
+    try:
+        verdict = EvidenceVerdict.model_validate(raw_verdict)
+    except ValidationError:
+        raise EvidenceContractError("证据判定字段不符合契约") from None
     if not verdict.supported:
         if verdict.supporting_quotes or not verdict.missing_information.strip():
-            raise ValueError("无法回答时必须说明缺失信息，且不能附带支持引文")
+            raise EvidenceContractError("无法回答时必须说明缺失信息，且不能附带支持引文")
         return verdict, []
     if not verdict.supporting_quotes or verdict.missing_information.strip():
-        raise ValueError("可以回答时必须提供支持引文，且不能同时声明信息缺失")
+        raise EvidenceContractError("可以回答时必须提供支持引文，且不能同时声明信息缺失")
 
     by_id = {}
     for candidate in candidates:
@@ -208,10 +229,10 @@ def verify_evidence_review(
     for quote in verdict.supporting_quotes:
         candidate = by_id.get(quote.chunk_id)
         if candidate is None:
-            raise ValueError("支持引文引用了未知片段")
+            raise EvidenceContractError("支持引文引用了未知片段")
         content = candidate.get("content")
         if not quote.text.strip() or not isinstance(content, str) or quote.text not in content:
-            raise ValueError("支持引文不是候选片段中的原文")
+            raise EvidenceContractError("支持引文不是候选片段中的原文")
         excerpts = selected.setdefault(quote.chunk_id, [])
         if quote.text not in excerpts:
             excerpts.append(quote.text)

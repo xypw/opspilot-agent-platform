@@ -5,23 +5,36 @@ let currentOrder = null;
 let currentDraft = null;
 let eligibility = null;
 let reviewAccepted = false;
+let signedIn = false;
+sessionStorage.removeItem("opspilot-access-token");
 
-el("access-token").value = sessionStorage.getItem("opspilot-access-token") || "";
-el("access-token").addEventListener("input", () => {
-  sessionStorage.setItem("opspilot-access-token", el("access-token").value.trim());
-});
+function requireLogin() {
+  signedIn = false;
+  currentOrder = currentDraft = eligibility = null;
+  reviewAccepted = false;
+  el("service-main").hidden = true;
+  ["order-result", "knowledge-answer", "draft-preview", "draft-result"].forEach(id => {
+    el(id).textContent = "";
+  });
+  window.location.replace("/demo");
+}
 
 async function request(path, method = "GET", body) {
   const headers = {};
-  const token = el("access-token").value.trim();
-  if (token) headers.Authorization = "Bearer " + token;
-  const options = { method, headers, cache: "no-store" };
+  const csrf = typeof document.cookie === "string" ? document.cookie.split(";")
+    .map(item => item.trim()).find(item => item.startsWith("opspilot_csrf="))?.slice(14) : "";
+  if (csrf && method !== "GET") headers["X-CSRF-Token"] = decodeURIComponent(csrf);
+  const options = { method, headers, cache: "no-store", credentials: "same-origin" };
   if (body instanceof FormData) options.body = body;
   else if (body !== undefined) {
     headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(body);
   }
   const response = await fetch(path, options);
+  if (response.status === 401) {
+    requireLogin();
+    throw new Error("登录已失效，请重新登录");
+  }
   const data = await response.json();
   if (!response.ok) throw new Error("HTTP " + response.status + "：" +
     (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data)));
@@ -30,7 +43,10 @@ async function request(path, method = "GET", body) {
 
 async function run(task) {
   el("notice").textContent = "正在处理…";
-  try { await task(); el("notice").textContent = "操作完成"; }
+  try {
+    if (!signedIn) throw new Error("请先登录后办理售后");
+    await task(); el("notice").textContent = "操作完成";
+  }
   catch (error) { el("notice").textContent = error.message; }
 }
 
@@ -147,3 +163,20 @@ el("cancel-draft").addEventListener("click", () => run(async () => {
 el("refresh-draft").addEventListener("click", () => run(async () => {
   showDraft(await request(draftPath("/refresh"), "POST"));
 }));
+
+async function verifyServiceSession() {
+  signedIn = false;
+  el("service-main").hidden = true;
+  try {
+    const user = await request("/auth/me");
+    signedIn = true;
+    el("service-identity").textContent = "当前账号：" + user.username;
+    el("upload-form").hidden = !user.roles.includes("knowledge_admin");
+    el("service-main").hidden = false;
+  } catch (error) {
+    // 配置或网络异常也不展示操作区，不能降级为令牌或匿名模式。
+    el("notice").textContent = error.message;
+  }
+}
+window.addEventListener("pageshow", verifyServiceSession);
+verifyServiceSession();

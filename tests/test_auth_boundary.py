@@ -20,9 +20,10 @@ TOKEN_B = "test-user-b-token-00000002"
 INTERNAL_TOKEN = "test-internal-service-token-0001"
 AUTH_ENV = {
     "OPSPILOT_AUTH_REQUIRED": "true",
+    "OPSPILOT_DEBUG_ENABLED": "true",
     "OPSPILOT_AUTH_TOKENS": json.dumps({
-        TOKEN_A: {"user_id": "U-1001", "roles": ["customer", "knowledge_admin"]},
-        TOKEN_B: {"user_id": "U-1002", "roles": ["customer"]},
+        TOKEN_A: {"user_id": "U-1001", "roles": ["customer", "knowledge_admin", "developer"]},
+        TOKEN_B: {"user_id": "U-1002", "roles": ["customer", "developer"]},
     }),
     "OPSPILOT_INTERNAL_SERVICE_TOKEN": INTERNAL_TOKEN,
 }
@@ -43,7 +44,7 @@ class AuthenticationBoundaryTests(unittest.TestCase):
     }, clear=False)
     def test_incomplete_server_configuration_returns_503(self):
         with TestClient(app) as client:
-            response = client.get("/agent-graph/runs/not-found")
+            response = client.get("/auth/me")
         self.assertEqual(response.status_code, 503)
 
     @patch.dict(os.environ, AUTH_ENV, clear=False)

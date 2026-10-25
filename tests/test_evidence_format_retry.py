@@ -5,6 +5,7 @@ from unittest.mock import patch
 from evidence_review import ConfiguredEvidenceReviewer, EvidenceResponseFormatError, verify_evidence_review
 from model_rate_limit import ModelRateLimitExceeded
 from preview_tool_call import ModelAPIError
+from ollama_gateway import LocalModelTruncatedError,LocalModelFormatError
 
 
 CANDIDATES = [{"chunk_id": "invoice", "content": "订单完成后在票据服务入口申请。"}]
@@ -15,6 +16,25 @@ INVALID = {"role": "assistant", "content": "private-malformed-response"}
 
 
 class EvidenceFormatRetryTests(unittest.TestCase):
+    @patch("evidence_review.model_provider",return_value="ollama")
+    def test_local_truncation_can_repair_once_without_using_partial_answer(self,_):
+        reply=self.run_review([LocalModelTruncatedError("partial not usable"),VALID])
+        verify_evidence_review(reply.verdict,CANDIDATES)
+        self.assertEqual(self.budgets,[1,1])
+        self.assertEqual(reply.telemetry.http_attempts,2)
+        self.assertEqual(reply.telemetry.retry_count,1)
+        self.assertNotIn("partial not usable",json.dumps(self.messages))
+
+    @patch("evidence_review.model_provider",return_value="ollama")
+    def test_local_second_truncation_stops_and_contract_violations_do_not_retry(self,_):
+        with self.assertRaises(LocalModelTruncatedError) as caught:
+            self.run_review([LocalModelTruncatedError("partial"),LocalModelTruncatedError("partial")])
+        self.assertEqual(len(self.messages),2)
+        self.assertEqual(caught.exception.model_http_attempts,2)
+        with self.assertRaises(LocalModelFormatError):
+            self.run_review([LocalModelFormatError("tool violation")])
+        self.assertEqual(len(self.messages),1)
+
     def run_review(self, replies):
         self.messages = []
         self.budgets = []

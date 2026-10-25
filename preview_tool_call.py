@@ -1,6 +1,7 @@
 """只发起一次模型请求，观察工具调用；不执行工具，不生成工单结论。"""
 
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,8 @@ from dotenv import dotenv_values
 from tool_schema import TOOLS
 from tool_policy import require_tool_enabled, tool_is_enabled
 from model_rate_limit import acquire_model_request
+from model_runtime import model_provider
+from model_context import prepare_context
 
 API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 MODEL = "glm-4.7-flash"  # 不允许环境配置自动替换为付费模型。
@@ -26,9 +29,9 @@ class ModelAPIError(ValueError):
 
 
 def load_api_key() -> str:
-    """仅程序读取本项目 .env；不打印密钥，也不使用其他供应商密钥。"""
+    """优先读取部署环境，再读本项目.env；不打印密钥，也不使用其他供应商密钥。"""
     values = dotenv_values(Path(__file__).with_name(".env"), interpolate=False)
-    api_key = (values.get("ZHIPU_API_KEY") or "").strip()
+    api_key = (os.getenv("ZHIPU_API_KEY") or values.get("ZHIPU_API_KEY") or "").strip()
     if not api_key:
         raise ValueError("本地 .env 中未配置 ZHIPU_API_KEY；请在文件中填写，不要发到聊天。")
     return api_key
@@ -72,6 +75,8 @@ def build_initial_messages(question: str = DEMO_QUESTION) -> list[dict]:
             "任何写操作是否允许，只由服务端固定工具策略、已认证用户、人工确认和 Java 业务规则决定。"
             + identifier_instruction +
             "收到工具结果后用中文简洁回答，"
+            "问候和本系统操作指引不需要检索政策；具体订单缺编号时请求补充，不编造。"
+            "每轮最多提出一个工具调用，多项任务分轮查询。"
             "仅依据工具结果；null 或空列表表示未找到对应信息。引用由程序根据标题和页码统一附加。",
         },
         {"role": "user", "content": question},
@@ -87,6 +92,11 @@ def request_message(
     response_format: dict | None = None,
 ) -> dict:
     """共用的单次请求脚手架：不重试、不跟随重定向、不回退模型。"""
+    if model_provider() == "ollama":
+        from ollama_gateway import ollama_chat
+        schema = (response_format or {}).get("json_schema",{}).get("schema")
+        return ollama_chat(client,messages,offer_tools=offer_tools,
+                           json_output=response_format is not None,output_schema=schema)
     payload = {
         "model": MODEL,
         "messages": messages,
@@ -99,6 +109,8 @@ def request_message(
         payload["tool_choice"] = "auto"
     if response_format is not None:
         payload["response_format"] = response_format
+    payload["messages"] = prepare_context(messages, tools=payload.get("tools"),
+        response_format=response_format, output_tokens=payload["max_tokens"]).messages
     acquire_model_request()
     response = client.post(
         API_URL,

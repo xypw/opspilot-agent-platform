@@ -4,20 +4,27 @@ from io import BytesIO
 from pathlib import Path
 
 import httpx
+import psycopg
 import tool_executor
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.concurrency import run_in_threadpool
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from return_draft_client import ReturnOrderChanged
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from model_rate_limit import ModelRateLimitExceeded, ModelAdmissionUnavailable
+from model_context import ContextBudgetExceeded
 
 from auth import (
     AuthenticatedUser,
     authenticate_request,
+    authenticate_service_request,
     auth_required,
+    debug_enabled,
     bind_authenticated_user,
     require_role,
 )
@@ -90,6 +97,9 @@ from priority_change_graph import (
 from runtime_store_factory import build_runtime_stores
 from tool_args import RequestPriorityChangeArgs
 from tool_policy import ToolDisabledError
+from portal_store import PortalConflictError, PortalNotFoundError
+from portal_auth import build_auth_router
+from portal_api import build_portal_router
 
 app = FastAPI(
     title="OpsPilot 售后知识与业务服务",
@@ -102,7 +112,7 @@ _PROJECT_DIR = Path(__file__).resolve().parent
 app.mount("/demo-assets", StaticFiles(directory=_PROJECT_DIR / "static"), name="demo-assets")
 
 
-_PUBLIC_PATHS = {"/health", "/demo", "/service", "/demo/sample-policy.pdf", "/openapi.json", "/docs", "/redoc"}
+_PUBLIC_PATHS = {"/health", "/demo", "/auth/login", "/demo/sample-policy.pdf"}
 _LEGACY_API_PREFIXES = (
     "/actions/",
     "/agent/runs",
@@ -117,12 +127,16 @@ _LEGACY_API_PREFIXES = (
 async def enforce_authentication(request: Request, call_next):
     """部署模式统一保护 API；文档和本机演示页面保持可访问。"""
     path = request.url.path
+    debug_path = (path.rstrip("/") in {"/demo/legacy", "/docs", "/redoc", "/openapi.json"}
+                  or path.startswith(("/docs/", "/redoc/", "/agent-graph/"))
+                  or path == "/agent-graph")
+    if auth_required() and debug_path and not debug_enabled():
+        return JSONResponse(status_code=404, content={"detail": "开发调试入口未开放。"},
+                            headers={"Cache-Control": "no-store"})
     if (
         not auth_required()
         or path in _PUBLIC_PATHS
         or path.startswith("/demo-assets/")
-        or path.startswith("/docs/")
-        or path.startswith("/redoc/")
     ):
         return await call_next(request)
     if any(path == prefix.rstrip("/") or path.startswith(prefix)
@@ -132,16 +146,32 @@ async def enforce_authentication(request: Request, call_next):
             content={"detail": "部署模式已关闭旧教学接口，请使用 /agent-graph/runs。"},
         )
     try:
-        user = authenticate_request(request)
+        authenticate = (authenticate_service_request
+                        if path == "/service" or path.startswith("/service/") else authenticate_request)
+        user = await run_in_threadpool(authenticate, request)
+        if debug_path:
+            require_role(user, "developer")
     except HTTPException as error:
+        if path in {"/service", "/service/"} and request.method in {"GET", "HEAD"} and error.status_code == 401:
+            return RedirectResponse("/demo", status_code=303, headers={"Cache-Control": "no-store"})
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+    except psycopg.Error:
+        return JSONResponse(status_code=503, content={"detail": "登录存储暂不可用，请稍后再试"})
     request.state.authenticated_user = user
     with bind_authenticated_user(user):
-        return await call_next(request)
+        response = await call_next(request)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @app.get("/demo", include_in_schema=False)
 def demo_page():
+    return FileResponse(_PROJECT_DIR / "static" / "portal.html")
+
+
+@app.get("/demo/legacy", include_in_schema=False)
+def legacy_demo_page():
     return FileResponse(_PROJECT_DIR / "static" / "demo.html")
 
 
@@ -565,6 +595,8 @@ def start_langgraph_agent(
     except TicketNotFoundError as error:
         # 工具参数合法但目标工单不存在，属于业务资源不存在而不是模型服务故障。
         raise HTTPException(status_code=404, detail=str(error)) from None
+    except ContextBudgetExceeded as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
     except (ValidationError, ValueError):
         # 模型输出的 JSON 或工具参数不符合契约时，不向客户端泄露原始模型内容。
         raise HTTPException(status_code=502, detail="模型返回的工具调用或参数不符合约定。") from None
@@ -705,6 +737,47 @@ def post_chat(request: ChatRequest) -> dict:
         raise HTTPException(status_code=504, detail="模型请求超时，本次流程未完成。") from None
     except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="无法完成模型网络请求，本次流程未完成。") from None
+    except ContextBudgetExceeded as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
     except (ValidationError, ValueError):
         # 不回显原始模型响应或校验输入，防止错误响应意外泄露数据。
         raise HTTPException(status_code=502, detail="模型返回的工具调用、参数或回答不符合约定。") from None
+
+
+@app.exception_handler(ContextBudgetExceeded)
+async def context_budget_handler(request: Request, error: ContextBudgetExceeded):
+    return JSONResponse(status_code=422, content={"detail": str(error)})
+
+
+@app.exception_handler(PortalNotFoundError)
+async def portal_not_found(request, error):
+    return JSONResponse(status_code=404, content={"detail": str(error)})
+
+
+@app.exception_handler(RequestValidationError)
+async def redact_login_validation(request, error):
+    if request.url.path == "/auth/login":
+        # FastAPI默认校验错误会回显input，登录请求不能回显密码。
+        return JSONResponse(status_code=422, content={"detail": "账号或密码格式不符合要求"})
+    return await request_validation_exception_handler(request, error)
+
+
+@app.exception_handler(PortalConflictError)
+async def portal_conflict(request, error):
+    return JSONResponse(status_code=409, content={"detail": str(error)})
+
+
+@app.exception_handler(psycopg.Error)
+async def portal_database_unavailable(request, error):
+    return JSONResponse(status_code=503, content={"detail": "数据库暂不可用；请保留原任务编号，不要重发业务申请"})
+
+
+app.include_router(build_auth_router())
+app.include_router(build_portal_router(
+    start_run=lambda request, user, history: start_agent_graph(
+        AGENT_GRAPH, request, user.user_id, conversation_history=history),
+    read_run=get_langgraph_agent,
+    resume_run=resume_langgraph_agent,
+    submit_reason=post_return_reason,
+    refresh_run=refresh_langgraph_return_confirmation,
+))

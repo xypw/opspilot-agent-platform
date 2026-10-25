@@ -1,0 +1,22 @@
+{
+  "model": "glm-4.6v-flash",
+  "synthetic_images": 2,
+  "questions_planned": 3,
+  "questions_attempted": 1,
+  "http_attempts": 2,
+  "http_budget": 6,
+  "records": [
+    {
+      "id": "color",
+      "question": "请描述图片的主要颜色。",
+      "image_sha256": [
+        "5a177d4cfe02e80b3c8570b5dee6d0c5479a37763b9fde93e7c1e4ba0effc21b"
+      ],
+      "status": "failed",
+      "error_type": "ModelAPIError",
+      "http_status": 429,
+      "http_attempts": 2
+    }
+  ],
+  "limitations": "Small synthetic transport/vision smoke, not task success or general image accuracy."
+}
