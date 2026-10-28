@@ -33,3 +33,12 @@ RUN_PORTAL_POSTGRES_INTEGRATION=1 python -X utf8 -m unittest \
 本轮检查时 Docker 引擎不可连接，因此未重启 Docker、未重新构建/部署，也未重跑本机 HTTP/PG 验收。此前 24 项部署检查保留在 [原报告](accounts-deployment-20261028.json)，不能当作本次两处补丁已部署的证明。本轮无本地或云端模型调用，未更新模型效果指标。
 
 GitHub Actions 将在推送后执行；最终状态与原始日志以该提交的 Actions 记录为准。本报告只描述本机结果和 CI 配置，不预先宣称远端通过。注册无邮箱/手机验证与密码找回，草稿刷新后不保留，仍属于本机演示系统。
+
+## 用户批准后的部署补充
+
+- 代码提交 `71dfba070fbb11c1a14bbaa612d032030e20ac44` 已推送；[GitHub Actions 40682062295](https://github.com/xypw/opspilot-agent-platform/actions/runs/40682062295) 的 Python/Node、真实PG账号事务、Java 和固定模拟任务回归均成功。
+- 用户随后批准本机部署。启动 Docker Desktop 一次后引擎正常；复用原 PG/Redis 数据卷，增量构建 API 与 Java 镜像；Java 打包复用已通过测试的类文件和本机 Maven 缓存，不下载依赖。
+- 应用005及身份回填成功，API、Java、PostgreSQL、Redis 四容器均健康，端口仅绑定127.0.0.1。原应用镜像保留为 `opspilot-api:before-review-20261028-1956` 和 `opspilot-business-service:before-review-20261028-1956`。
+- 本机门户/注册测试显式启用PG后27项通过（含4项离线API边界、23项真实PG测试）。新的真实HTTP跨服务验收24项通过，见[本轮逐项报告](accounts-deployment-20261028-review.json)，临时测试账号和订单已清理。
+- 额外HTTP检查：健康与门户页面200，匿名管理员列表及订单查询401。已逐文件核对容器中的账号/会话代码、迁移脚本、门户JS与本地源码哈希一致。
+- 本轮模型调用0次，原用户密码、历史和业务数据保留。入口为 `http://127.0.0.1:8011/demo`。
