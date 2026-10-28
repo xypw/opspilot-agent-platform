@@ -29,6 +29,8 @@ class PortalPostgresIntegrationTests(unittest.TestCase):
         self.addCleanup(self.cleanup)
         self.migration = (Path(__file__).resolve().parents[1]/"db/migrations/003_customer_portal.sql").read_text(encoding="utf-8")
         with self.connection() as db: db.execute(self.migration)
+        with self.connection() as db:
+            db.execute((Path(__file__).resolve().parents[1]/'db/migrations/005_portal_registration.sql').read_text(encoding='utf-8'))
         self.store = PostgresPortalStore(self.connection)
 
     def connection(self):

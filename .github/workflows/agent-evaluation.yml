@@ -10,7 +10,20 @@ permissions:
 jobs:
   offline-regression:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: opspilot_test
+          POSTGRES_PASSWORD: ci-local-test-only
+          POSTGRES_DB: opspilot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opspilot_test -d opspilot_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      DATABASE_URL: postgresql://opspilot_test:ci-local-test-only@127.0.0.1:5432/opspilot_test
       REDIS_URL: " "
       TICKET_REPOSITORY_BACKEND: memory
       ORDER_QUERY_BACKEND: memory
@@ -41,6 +54,13 @@ jobs:
 
       - name: Run demo page tests
         run: node --test static/demo.test.cjs static/service.test.cjs static/portal.test.cjs
+
+      - name: Verify account transactions and session revocation with PostgreSQL
+        env:
+          RUN_PORTAL_POSTGRES_INTEGRATION: "1"
+        run: >-
+          python -X utf8 -m unittest
+          tests.test_portal_postgres_integration tests.test_portal_registration
 
       - name: Generate current Agent evaluation report
         run: >-

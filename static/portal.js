@@ -56,6 +56,7 @@ if (typeof document !== "undefined") {
   const conversationDraft = new ConversationDraft();
   let runtime = null, previousImages = [], pendingView = null;
   let olderBefore = null;
+  let registering=false, adminOffset=0, currentUsername=null;
   const label = {RUNNING:"执行中", COMPLETED:"已完成", WAITING_REASON:"等待补充原因", WAITING_CONFIRMATION:"等待确认", STALE_CONFIRMATION:"确认已失效", RESULT_UNKNOWN:"结果待核实", FAILED:"本轮失败", CANCELLED:"已取消", EXPIRED:"已过期"};
 
   function element(tag, text, className) {
@@ -65,6 +66,10 @@ if (typeof document !== "undefined") {
     return node;
   }
   function loggedOut() {
+    registering=false;el("login-submit").textContent="登录";
+    el("register-mode").textContent="没有账号？注册";el("password").minLength=1;
+    el("admin-panel").hidden=true; el("admin-link").hidden=true;
+    el("admin-users").replaceChildren();currentUsername=null;
     conversationDraft.reset();
     runtime = null; previousImages = [];
     conversationId = null; selectedImages = []; pending = null;
@@ -107,18 +112,22 @@ if (typeof document !== "undefined") {
       transportSignal?.removeEventListener("abort", abortTransport);
     }
   }
-  async function perform(task) {
+  async function perform(task, allowDraft = false) {
     if (busy) return;
     busy = true;
     document.querySelectorAll("button,input,textarea,select").forEach(node => { node.disabled = true; });
+    if (allowDraft) el("message").disabled = false;
     el("notice").textContent = "正在处理…";
-    try { await task(); el("notice").textContent = "操作完成"; }
+    el("admin-notice").textContent="";
+    try { await task(); if(el("notice").textContent==="正在处理…")el("notice").textContent = "操作完成"; }
     catch (error) {
       el("notice").textContent = error.message + "\n不会自动重发。可刷新会话，业务结果未知时先同步原任务。";
       el("login-notice").textContent = error.message;
+      el("admin-notice").textContent = error.message;
     } finally {
       busy = false;
       document.querySelectorAll("button,input,textarea,select").forEach(node => { node.disabled = false; });
+      document.querySelectorAll(".self-account").forEach(node => { node.disabled = true; });
       document.querySelectorAll(".confirm-execution").forEach(node => { node.disabled = !node.approvalCheck.checked; });
     }
   }
@@ -141,6 +150,10 @@ if (typeof document !== "undefined") {
     renderAttachments();
     document.querySelectorAll(".conversation-link").forEach(node => node.classList.remove("selected"));
   }
+  function mayLeaveDraft() {
+    return !(el("message").value.trim() || selectedImages.length || el("image-files").files?.length)
+      || window.confirm("当前有未发送的内容。离开会丢弃这些内容，是否继续？");
+  }
   async function listConversations(offset = 0, timeout = 180000) {
     const result = await request("/conversations?offset=" + offset,"GET",undefined,timeout);
     if (!offset) el("conversation-list").replaceChildren();
@@ -148,6 +161,9 @@ if (typeof document !== "undefined") {
       const button = element("button", item.title, "conversation-link" + (item.id === conversationId ? " selected" : ""));
       button.type = "button";
       button.addEventListener("click", () => perform(async () => {
+        if(item.id===conversationId)return;
+        if(!mayLeaveDraft())return;
+        el("message").value="";el("image-files").value="";el("external-consent").checked=false;
         selectedImages = []; pending = null; renderAttachments(); await loadConversation(item.id);
       }));
       el("conversation-list").append(button);
@@ -255,6 +271,7 @@ if (typeof document !== "undefined") {
   async function sendMessage(message, body) {
     // 先渲染本地消息；仅服务端状态能证明已接收，不能把网络发出当作业务成功。
     const view = pendingMessage(message);
+    el("message").value = "";
     let stopped = false, timer = null, submission = null, cid = null;
     const transport = new AbortController();
     let acceptObserved, rejectObserved;
@@ -276,7 +293,6 @@ if (typeof document !== "undefined") {
       try {
         const turn = await readAccepted();
         if (!stopped && pending===submission && conversationId===cid && turn) {
-          if (el("message").value.trim()===message) el("message").value="";
           if (turn.status==="RUNNING") show("问题已接收，正在思考或查询订单与政策，请稍候…");
           else { acceptObserved(turn); return; }
         }
@@ -327,7 +343,6 @@ if (typeof document !== "undefined") {
         throw new Error("问题已接收，结果仍待确认。请检查处理进度，不要重新创建业务申请。");
       }
       pending=null; selectedImages=[]; renderAttachments();
-      if (el("message").value.trim()===message) el("message").value="";
       el("external-consent").checked=false;
       await displayAccepted(result,cid,message);
     } catch (error) {
@@ -363,17 +378,51 @@ if (typeof document !== "undefined") {
     el("vision-status").textContent = runtime.notice;
     el("external-consent-panel").hidden = !runtime.requires_image_consent;
     el("identity").textContent = user.username; el("login-panel").hidden = true;
+    currentUsername=user.username;
+    el("admin-link").hidden=!(user.roles||[]).includes("admin");
+    if(user.demo_order_id)el("message").placeholder="你的虚构演示订单："+user.demo_order_id+"，例如：查询订单 "+user.demo_order_id;
     el("workspace").hidden = false; el("logout").hidden = false;
     el("service-link").hidden = false;
     sessionStorage.removeItem("opspilot-access-token");
     await listConversations();
   }
   el("login-form").addEventListener("submit",event=>{event.preventDefault();perform(async()=>{
-    await request("/auth/login","POST",{username:el("username").value.trim(),password:el("password").value});
+    const account=await request(registering?"/auth/register":"/auth/login","POST",{username:el("username").value.trim(),password:el("password").value});
     el("password").value="";el("login-notice").textContent="";await enter();
+    if(registering)el("notice").textContent="注册成功，已自动登录。已创建虚构演示订单："+account.demo_order_id;
   });});
+  el("register-mode").addEventListener("click",()=>{
+    registering=!registering;el("password").value="";
+    el("password").minLength=registering?12:1;
+    el("password").autocomplete=registering?"new-password":"current-password";
+    el("login-submit").textContent=registering?"注册并登录":"登录";
+    el("register-mode").textContent=registering?"已有账号？登录":"没有账号？注册";
+  });
+  async function loadUsers(offset=0) {
+    const data=await request("/auth/admin/users?offset="+offset);
+    const rows=data.items.map(user=>{
+      const row=element("article",undefined,"card");
+      row.append(element("strong",user.username),element("p","用户ID："+user.user_id),
+        element("p","角色："+(user.roles||[]).join("、")+"；状态："+(user.active?"已启用":"已禁用")));
+      const control=element("button",user.active?"禁用账号":"启用账号");control.type="button";
+      control.disabled=user.username===currentUsername;
+      if(control.disabled)control.className="self-account";
+      control.addEventListener("click",()=>perform(async()=>{
+        if(!window.confirm("确认"+(user.active?"禁用":"启用")+"账号 "+user.username+"？"))return;
+        await request("/auth/admin/users/"+encodeURIComponent(user.username),"PATCH",{active:!user.active});
+        await loadUsers(offset);
+      }));row.append(control);return row;
+    });
+    el("admin-users").replaceChildren(...rows);adminOffset=data.next_offset;
+    el("admin-more").hidden=adminOffset===null;
+  }
+  el("admin-link").addEventListener("click",()=>perform(async()=>{
+    await loadUsers();el("workspace").hidden=true;el("admin-panel").hidden=false;
+  }));
+  el("admin-back").addEventListener("click",()=>{el("admin-panel").hidden=true;el("workspace").hidden=false;});
+  el("admin-more").addEventListener("click",()=>perform(()=>loadUsers(adminOffset)));
   el("logout").addEventListener("click",()=>perform(async()=>{await request("/auth/logout","POST");sessionStorage.removeItem("opspilot-access-token");loggedOut();}));
-  el("new-conversation").addEventListener("click",()=>perform(async()=>{openDraft();}));
+  el("new-conversation").addEventListener("click",()=>perform(async()=>{if(mayLeaveDraft())openDraft();}));
   el("more-conversations").addEventListener("click",()=>perform(()=>listConversations(nextOffset)));
   el("reload").addEventListener("click",()=>perform(async()=>{if(conversationId) await loadConversation(conversationId);else await listConversations();}));
   el("older-messages").addEventListener("click",()=>perform(async()=>{
@@ -405,6 +454,6 @@ if (typeof document !== "undefined") {
     const body={message,mode:"live",image_ids:selectedImages.slice(),reuse_images:reuse,
                 allow_external_images:runtime.requires_image_consent && el("external-consent").checked};
     await sendMessage(message,body);
-  });});
+  }, true);});
   enter().catch(error=>{loggedOut();if(!error.message.startsWith("HTTP 401"))el("login-notice").textContent=error.message;});
 }

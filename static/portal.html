@@ -5,11 +5,11 @@
   <title>OpsPilot · 售后会话</title>
   <link rel="stylesheet" href="/demo-assets/demo.css">
   <link rel="stylesheet" href="/demo-assets/portal.css">
-  <script src="/demo-assets/portal.js" defer></script>
+  <script src="/demo-assets/portal.js?v=20261028-accounts" defer></script>
 </head>
 <body>
   <header><div><strong>OpsPilot</strong><span>订单 · 政策 · 图片咨询</span></div>
-    <nav><a id="service-link" href="/service" hidden>直接办理售后</a><span id="identity">未登录</span><button id="logout" hidden>退出登录</button></nav>
+    <nav><button id="admin-link" type="button" hidden>用户管理</button><a id="service-link" href="/service" hidden>直接办理售后</a><span id="identity">未登录</span><button id="logout" hidden>退出登录</button></nav>
   </header>
   <div id="login-panel" class="login-shell">
     <form id="login-form" class="card">
@@ -17,11 +17,19 @@
       <p>登录后查看历史记录，查询订单与政策，或上传图片进行咨询。</p>
       <label for="username">账号</label><input id="username" autocomplete="username" maxlength="40" required>
       <label for="password">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="128" required>
-      <button type="submit">登录</button>
-      <p class="note">演示账号由管理员在本机初始化，无公共默认密码。不要上传真实证件或敏感订单资料。</p>
+      <button id="login-submit" type="submit">登录</button>
+      <button id="register-mode" type="button" class="secondary">没有账号？注册</button>
+      <p id="auth-help" class="note">注册仅创建普通账号，并附赠一笔虚构演示订单。注册密码为12—128个字符。不要上传真实证件或敏感订单资料。</p>
       <p id="login-notice" role="alert"></p>
     </form>
   </div>
+  <main id="admin-panel" hidden>
+    <section class="card"><h1>用户管理</h1><p>禁用会立即撤销该账号登录，历史与订单保留。管理员账号由本机维护设置。</p>
+      <button id="admin-back" type="button">返回售后会话</button>
+      <p id="admin-notice" role="status"></p><div id="admin-users"></div>
+      <button id="admin-more" type="button" hidden>下一页</button>
+    </section>
+  </main>
   <main id="workspace" hidden>
     <aside class="card history-sidebar">
       <div class="section-title"><h2>我的会话</h2><button id="new-conversation" type="button">＋ 新会话</button></div>
@@ -37,6 +45,7 @@
       <form id="composer" class="card">
         <label for="message">你的问题</label>
         <textarea id="message" rows="3" maxlength="1000" required placeholder="例如：查询订单 O-7101；或上传图片后询问商品表面有什么异常。"></textarea>
+        <p class="note">等待回答时可以输入下一句话，当前处理结束后再手动发送。</p>
         <div id="attachments" class="attachments" aria-label="本轮图片"></div>
         <div class="row"><label for="image-files">添加图片</label><input id="image-files" type="file" accept="image/png,image/jpeg" multiple></div>
         <p class="note">每轮最多3张PNG/JPEG，每张不超过4 MB。图片仅用于当前会话，不自动进入公共知识库。</p>

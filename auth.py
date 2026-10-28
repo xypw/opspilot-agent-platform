@@ -142,7 +142,10 @@ def current_authorization_header() -> dict[str, str]:
     internal_token = _internal_service_token()
     if len(internal_token) < 16:
         raise RuntimeError("启用鉴权时必须配置至少 16 个字符的内部服务令牌。")
+    from portal_identity import issue_business_identity
     return {
-        "Authorization": f"Bearer {user.token}",
+        "Authorization": "Bearer " + (
+            issue_business_identity(user.user_id)
+            if user.token.startswith('portal:') else user.token),
         "X-OpsPilot-Service-Token": internal_token,
     }

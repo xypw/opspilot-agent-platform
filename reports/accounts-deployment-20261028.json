@@ -1,0 +1,102 @@
+{
+  "checks": [
+    {
+      "check": "register_a",
+      "passed": true
+    },
+    {
+      "check": "customer_only_a",
+      "passed": true
+    },
+    {
+      "check": "auto_login_a",
+      "passed": true
+    },
+    {
+      "check": "register_b",
+      "passed": true
+    },
+    {
+      "check": "customer_only_b",
+      "passed": true
+    },
+    {
+      "check": "auto_login_b",
+      "passed": true
+    },
+    {
+      "check": "owned_order_java",
+      "passed": true
+    },
+    {
+      "check": "foreign_order_java",
+      "passed": true
+    },
+    {
+      "check": "no_admin_list",
+      "passed": true
+    },
+    {
+      "check": "no_policy_upload",
+      "passed": true
+    },
+    {
+      "check": "admin_roles",
+      "passed": true
+    },
+    {
+      "check": "admin_list",
+      "passed": true
+    },
+    {
+      "check": "no_password_in_list",
+      "passed": true
+    },
+    {
+      "check": "csrf_admin",
+      "passed": true
+    },
+    {
+      "check": "self_protected",
+      "passed": true
+    },
+    {
+      "check": "disable",
+      "passed": true
+    },
+    {
+      "check": "old_session_revoked",
+      "passed": true
+    },
+    {
+      "check": "java_rejects_disabled",
+      "passed": true
+    },
+    {
+      "check": "java_rejects_tamper",
+      "passed": true
+    },
+    {
+      "check": "enable",
+      "passed": true
+    },
+    {
+      "check": "enable_no_old_session",
+      "passed": true
+    },
+    {
+      "check": "login_again",
+      "passed": true
+    },
+    {
+      "check": "no_role_injection",
+      "passed": true
+    },
+    {
+      "check": "cross_origin",
+      "passed": true
+    }
+  ],
+  "model_calls": 0,
+  "test_accounts_cleaned": true
+}

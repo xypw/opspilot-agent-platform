@@ -11,6 +11,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Map;
 import java.util.Set;
+import java.util.Base64;
+import java.time.Instant;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -31,6 +37,8 @@ public final class ServiceAuthenticationFilter extends OncePerRequestFilter {
     private final boolean required;
     private final String configuredTokens;
     private final String internalServiceToken;
+    @Autowired(required = false)
+    private JdbcTemplate jdbc;
 
     public ServiceAuthenticationFilter(
             ObjectMapper mapper,
@@ -60,14 +68,20 @@ public final class ServiceAuthenticationFilter extends OncePerRequestFilter {
         String authorization = request.getHeader("Authorization");
         String bearer = authorization != null && authorization.startsWith("Bearer ")
                 ? authorization.substring(7) : "";
-        TokenDetails details = findUser(bearer);
-        if (details == null) {
+        if (bearer.isBlank()) {
             writeError(response, 401, "INVALID_ACCESS_TOKEN");
             return;
         }
+        // Verify the trusted caller before interpreting any end-user assertion.
         String serviceToken = request.getHeader("X-OpsPilot-Service-Token");
         if (!constantTimeEquals(serviceToken, internalServiceToken)) {
             writeError(response, 403, "TRUSTED_SERVICE_REQUIRED");
+            return;
+        }
+        TokenDetails details = findUser(bearer);
+        if (details == null) details = findPortalUser(bearer);
+        if (details == null) {
+            writeError(response, 401, "INVALID_ACCESS_TOKEN");
             return;
         }
         request.setAttribute(USER_ATTRIBUTE, new AuthenticatedUser(
@@ -88,6 +102,42 @@ public final class ServiceAuthenticationFilter extends OncePerRequestFilter {
             }
             return null;
         } catch (IOException error) {
+            return null;
+        }
+    }
+
+    private static byte[] mac(byte[] key, byte[] message) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(key, "HmacSHA256"));
+        return mac.doFinal(message);
+    }
+
+    private TokenDetails findPortalUser(String bearer) {
+        if (jdbc == null || bearer.length() > 2048) return null;
+        try {
+            String[] parts = bearer.split("\\.", -1);
+            if (parts.length != 3) return null;
+            var decoder = Base64.getUrlDecoder();
+            var header = mapper.readTree(decoder.decode(parts[0]));
+            if (!"HS256".equals(header.path("alg").asText()) || !"JWT".equals(header.path("typ").asText())) return null;
+            byte[] key = mac(internalServiceToken.getBytes(StandardCharsets.UTF_8),
+                    "opspilot-portal-identity-v1".getBytes(StandardCharsets.UTF_8));
+            if (!MessageDigest.isEqual(mac(key, (parts[0]+"."+parts[1]).getBytes(StandardCharsets.UTF_8)),
+                    decoder.decode(parts[2]))) return null;
+            var payload = mapper.readTree(decoder.decode(parts[1]));
+            long now = Instant.now().getEpochSecond();
+            if (!payload.path("exp").isIntegralNumber() || !payload.path("iat").isIntegralNumber()
+                    || payload.path("exp").asLong() <= now || payload.path("iat").asLong() > now + 5
+                    || payload.path("exp").asLong()-payload.path("iat").asLong() > 30
+                    || !"opspilot-portal".equals(payload.path("iss").asText())
+                    || !"opspilot-business".equals(payload.path("aud").asText())) return null;
+            String userId = payload.path("sub").asText();
+            if (userId.isBlank() || userId.length() > 100) return null;
+            // Revocation is checked on every business call, including in-flight agents.
+            return jdbc.query("SELECT user_id FROM portal_accounts WHERE user_id=? AND active",
+                    (row, n) -> new TokenDetails(row.getString("user_id"), Set.of("customer")), userId)
+                    .stream().findFirst().orElse(null);
+        } catch (Exception error) {
             return null;
         }
     }

@@ -36,7 +36,7 @@ test("重置或退出后不接纳旧草稿的迟到创建响应",async()=>{
   assert.equal(draft.id,null);
 });
 
-function portalHarness(responder) {
+function portalHarness(responder, allControls=false) {
   const nodes=new Map(), requests=[];
   let sequence=0;
   const timers=new Map(); let timerId=0;
@@ -51,7 +51,9 @@ function portalHarness(responder) {
   });
   const el=id=>{if(!nodes.has(id))nodes.set(id,node());return nodes.get(id);};
   vm.runInNewContext(fs.readFileSync(require.resolve("./portal.js"),"utf8"),{
-    document:{getElementById:el,createElement:node,cookie:"opspilot_csrf=test-csrf",querySelectorAll:()=>[]},
+    document:{getElementById:el,createElement:node,cookie:"opspilot_csrf=test-csrf",
+      querySelectorAll:selector=>allControls && selector==="button,input,textarea,select"?[...nodes.values()]:[]},
+    window:{confirm:()=>false},
     sessionStorage:{removeItem(){}},FormData:class{},crypto:{randomUUID:()=>"unit-request-"+(++sequence)},
     AbortController,
     setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,delay});return id;},
@@ -157,6 +159,51 @@ test("慢请求立即显示问题；只读轮询确认接收并显示处理中�
   finish();await tick();
   assert.equal(h.el("messages").attributes["aria-busy"],"false");
   assert.equal(h.timers.size,0);
+});
+
+test("思考时允许编辑下一句，禁止并发发送，迟到结果保留草稿且切换可取消",async()=>{
+  let finish,posted=0;
+  const reply=data=>({ok:true,status:200,json:async()=>data});
+  const h=portalHarness(async(path,options)=>{
+    if(path==="/auth/me")return reply({username:"user",roles:["customer"]});
+    if(path.startsWith("/conversations?"))return reply({items:[],next_offset:null});
+    if(path==="/conversations")return reply({id:"conv-1"});
+    if(path.endsWith("/turns")){
+      posted++;return new Promise(resolve=>{finish=()=>resolve(reply({status:"COMPLETED"}));});
+    }
+    return reply({id:"conv-1",title:"kept-title",turns:[]});
+  },true);
+  const tick=()=>new Promise(resolve=>setImmediate(resolve));await tick();
+  h.el("message").value="first";
+  h.el("composer").listeners.submit({preventDefault(){}});await tick();
+  assert.equal(h.el("message").disabled,false);
+  assert.equal(h.el("message").value,"");
+  assert.equal(h.el("new-conversation").disabled,true);
+  h.el("message").value="next question";
+  h.el("composer").listeners.submit({preventDefault(){}});await tick();
+  assert.equal(posted,1);
+  finish();await tick();
+  assert.equal(h.el("message").value,"next question");
+  h.el("new-conversation").listeners.click();await tick();
+  assert.equal(h.el("message").value,"next question");
+  assert.equal(h.el("conversation-title").textContent,"kept-title");
+});
+
+test("自助注册成功自动登录，注册请求不携带角色或用户ID",async()=>{
+  const reply=data=>({ok:true,status:200,json:async()=>data});
+  const h=portalHarness(async path=>{
+    if(path==='/auth/register')return reply({demo_order_id:'O-8000'});
+    if(path==='/auth/me')return reply({username:'newuser',roles:['customer'],demo_order_id:'O-8000'});
+    return reply({items:[],next_offset:null});
+  });
+  const tick=()=>new Promise(resolve=>setImmediate(resolve));await tick();
+  h.el('register-mode').listeners.click();
+  h.el('username').value='newuser';h.el('password').value='long-unit-password';
+  h.el('login-form').listeners.submit({preventDefault(){}});await tick();
+  const call=h.requests.find(x=>x.path==='/auth/register');
+  assert.deepEqual(JSON.parse(call.options.body),{username:'newuser',password:'long-unit-password'});
+  assert.equal(h.el('password').value,'');assert.equal(h.el('admin-link').hidden,true);
+  assert.match(h.el('notice').textContent,/注册成功.*O-8000/);
 });
 
 test("明确失败后手动重试使用新请求号，不永远复用旧失败结果",async()=>{

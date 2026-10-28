@@ -112,7 +112,7 @@ _PROJECT_DIR = Path(__file__).resolve().parent
 app.mount("/demo-assets", StaticFiles(directory=_PROJECT_DIR / "static"), name="demo-assets")
 
 
-_PUBLIC_PATHS = {"/health", "/demo", "/auth/login", "/demo/sample-policy.pdf"}
+_PUBLIC_PATHS = {"/health", "/demo", "/auth/login", "/auth/register", "/demo/sample-policy.pdf"}
 _LEGACY_API_PREFIXES = (
     "/actions/",
     "/agent/runs",
@@ -756,7 +756,7 @@ async def portal_not_found(request, error):
 
 @app.exception_handler(RequestValidationError)
 async def redact_login_validation(request, error):
-    if request.url.path == "/auth/login":
+    if request.url.path in {"/auth/login", "/auth/register"}:
         # FastAPI默认校验错误会回显input，登录请求不能回显密码。
         return JSONResponse(status_code=422, content={"detail": "账号或密码格式不符合要求"})
     return await request_validation_exception_handler(request, error)

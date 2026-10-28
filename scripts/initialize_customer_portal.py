@@ -18,9 +18,10 @@ def initialize():
     with create_database_connection() as connection:
         connection.execute((ROOT / "db/migrations/003_customer_portal.sql").read_text(encoding="utf-8"))
         connection.execute((ROOT / "db/migrations/004_conversation_memory.sql").read_text(encoding="utf-8"))
+        connection.execute((ROOT / "db/migrations/005_portal_registration.sql").read_text(encoding="utf-8"))
     store = PostgresPortalStore()
     created = []
-    for username, user_id in (("customer1", "U-1001"), ("customer2", "U-1002"), ("admin", "U-admin")):
+    for username, user_id in (("customer1", "U-1001"), ("customer2", "U-1002"), ("ys10087", "U-admin")):
         if not any(user.user_id == user_id for user in _configured_tokens().values()):
             continue
         if store.account(username):
@@ -28,6 +29,9 @@ def initialize():
         password = secrets.token_urlsafe(18)
         if store.create_account(username, user_id, hash_password(password)):
             created.append(f"{username}: {password}")
+    if store.account('ys10087'):
+        from scripts.upgrade_portal_accounts import upgrade
+        upgrade()
     if created:
         target = ROOT / "output/customer-login-access.txt"
         target.parent.mkdir(parents=True, exist_ok=True)

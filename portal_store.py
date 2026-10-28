@@ -54,6 +54,63 @@ class PostgresPortalStore:
                 VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""", (username, user_id, password_hash))
             return cursor.rowcount == 1
 
+    def register(self, username: str, password_hash: str) -> dict:
+        with self.transaction() as cursor:
+            # Serializes allocation and duplicate checks; all three inserts roll back together.
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended('portal-register',0))")
+            cursor.execute("SELECT 1 FROM portal_accounts WHERE username=%s", (username,))
+            if cursor.fetchone():
+                raise PortalConflictError("无法注册该账号，请更换账号或登录")
+            cursor.execute("""SELECT 'O-'||n::text AS id FROM generate_series(8000,9999) n
+                WHERE NOT EXISTS(SELECT 1 FROM orders WHERE id='O-'||n::text) ORDER BY n LIMIT 1""")
+            order = cursor.fetchone()
+            if order is None:
+                raise PortalConflictError("本机演示账号容量已满，请联系管理员")
+            uid = "U-" + uuid4().hex
+            cursor.execute("""INSERT INTO portal_accounts(username,user_id,password_hash,roles,demo_order_id)
+                VALUES (%s,%s,%s,ARRAY['customer'],%s) RETURNING username,user_id,roles,demo_order_id""",
+                (username, uid, password_hash, order['id']))
+            account = cursor.fetchone()
+            cursor.execute("""INSERT INTO orders(id,owner_user_id,status,product,delivered_at,amount_cents)
+                VALUES (%s,%s,'delivered','虚构演示机械键盘',CURRENT_DATE-1,39900)""", (order['id'],uid))
+            cursor.execute("""INSERT INTO order_return_policies(order_id,category,product_condition,
+                exclusion_confirmed_at_purchase,downloaded_or_unsealed,activated,merchant_no_reason_days,policy_version)
+                VALUES (%s,'STANDARD','INTACT',false,false,false,0,'registration-demo-v1')""", (order['id'],))
+            return account
+
+    def list_accounts(self, offset=0) -> list[dict]:
+        with self.transaction() as cursor:
+            cursor.execute("""SELECT username,user_id,active,roles,demo_order_id,created_at
+                FROM portal_accounts ORDER BY created_at,username LIMIT 50 OFFSET %s""", (offset,))
+            return cursor.fetchall()
+
+    def set_account_active(self, actor: str, target: str, active: bool) -> dict:
+        with self.transaction() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended('portal-admin',0))")
+            cursor.execute("SELECT roles,active FROM portal_accounts WHERE username=%s FOR UPDATE", (actor,))
+            source = cursor.fetchone()
+            if not source or not source['active'] or 'admin' not in (source['roles'] or []):
+                raise PermissionError("管理员身份已失效")
+            cursor.execute("SELECT roles FROM portal_accounts WHERE username=%s FOR UPDATE", (target,))
+            row = cursor.fetchone()
+            if row is None:
+                raise PortalNotFoundError("账号不存在")
+            if not active:
+                if actor == target:
+                    raise PortalConflictError("不能禁用当前管理员本人")
+                if 'admin' in (row['roles'] or []):
+                    cursor.execute("SELECT COUNT(*) AS n FROM portal_accounts WHERE active AND 'admin'=ANY(roles)")
+                    if cursor.fetchone()['n'] <= 1:
+                        raise PortalConflictError("不能禁用最后一个可用管理员")
+            cursor.execute("""UPDATE portal_accounts SET active=%s WHERE username=%s
+                RETURNING username,user_id,roles,active""", (active,target))
+            result = cursor.fetchone()
+            if not active:
+                cursor.execute("DELETE FROM portal_sessions WHERE username=%s", (target,))
+            cursor.execute("INSERT INTO portal_admin_events(actor,target,action) VALUES (%s,%s,%s)",
+                           (actor,target,'enable' if active else 'disable'))
+            return result
+
     def admit_login(self, username: str, address: str) -> bool:
         with self.transaction() as cursor:
             admitted = True
@@ -70,13 +127,19 @@ class PostgresPortalStore:
 
     def create_session(self, username: str, token_hash: str, csrf_hash: str):
         with self.transaction() as cursor:
+            # Serialize with account disabling: no delayed login may recreate a
+            # revoked session that becomes usable when the account is re-enabled.
+            cursor.execute("SELECT active FROM portal_accounts WHERE username=%s FOR UPDATE", (username,))
+            account = cursor.fetchone()
+            if account is None or not account['active']:
+                raise PortalConflictError("账号不可用，请重新登录")
             cursor.execute("DELETE FROM portal_sessions WHERE expires_at <= NOW()")
             cursor.execute("""INSERT INTO portal_sessions(token_hash,username,csrf_hash,expires_at)
                 VALUES (%s,%s,%s,NOW()+INTERVAL '8 hours')""", (token_hash, username, csrf_hash))
 
     def session(self, token_hash: str) -> dict | None:
         with self.transaction() as cursor:
-            cursor.execute("""SELECT a.username,a.user_id,s.csrf_hash,s.expires_at
+            cursor.execute("""SELECT a.username,a.user_id,a.roles,a.demo_order_id,s.csrf_hash,s.expires_at
                 FROM portal_sessions s JOIN portal_accounts a ON a.username=s.username
                 WHERE s.token_hash=%s AND s.expires_at>NOW() AND a.active""", (token_hash,))
             return cursor.fetchone()
